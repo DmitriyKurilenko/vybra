@@ -1,0 +1,35 @@
+# VCS / metadata
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.pytest_cache/
+.mypy_cache/
+
+# Local environments
+venv/
+.venv/
+env/
+
+# Node build tooling (not needed in runtime image)
+node_modules/
+npm-debug.log
+
+# Runtime / local state
+logs/
+celerybeat-schedule
+*.pid
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Build artifacts
+staticfiles/
+media/

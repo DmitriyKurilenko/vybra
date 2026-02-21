@@ -1,0 +1,92 @@
+services:
+  db:
+    restart: unless-stopped
+    command: postgres -c shared_buffers=96MB -c work_mem=2MB -c maintenance_work_mem=32MB -c max_connections=30
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vybra"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 320m
+    cpus: 0.40
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no --maxmemory 96mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 128m
+    cpus: 0.20
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    restart: unless-stopped
+    init: true
+    command: sh -c "python manage.py migrate --noinput && gunicorn vybra.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60 --keep-alive 5 --max-requests 250 --max-requests-jitter 25 --access-logfile - --error-logfile -"
+    environment:
+      - DEBUG=False
+      - DB_CONN_MAX_AGE=45
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in environment}
+      - SECURE_SSL_REDIRECT=True
+      - SESSION_COOKIE_SECURE=True
+      - CSRF_COOKIE_SECURE=True
+      - SECURE_HSTS_SECONDS=${SECURE_HSTS_SECONDS:-31536000}
+      - SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+      - SECURE_HSTS_PRELOAD=True
+      - PARSED_PRODUCT_CACHE_TTL=${PARSED_PRODUCT_CACHE_TTL:-172800}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in environment}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/ >/dev/null"]
+      interval: 20s
+      timeout: 7s
+      retries: 5
+      start_period: 30s
+    mem_limit: 300m
+    cpus: 0.35
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  celery:
+    restart: unless-stopped
+    init: true
+    command: celery -A vybra worker -l info --pool=solo --concurrency=1 --without-gossip --without-mingle --without-heartbeat --max-tasks-per-child=50 --max-memory-per-child=220000
+    environment:
+      - DEBUG=False
+      - DB_CONN_MAX_AGE=45
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in environment}
+      - PARSED_PRODUCT_CACHE_TTL=${PARSED_PRODUCT_CACHE_TTL:-172800}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in environment}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 240m
+    cpus: 0.25
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

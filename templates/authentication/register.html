@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация - Vybra</title>
+
+    <!-- Precompiled Tailwind CSS -->
+    <link href="{% static 'css/tailwind.generated.css' %}" rel="stylesheet" type="text/css" />
+    <link href="{% static 'css/meraki-ui.css' %}" rel="stylesheet" type="text/css" />
+
+    <style>
+        :root {
+            --brand: #FF4B2B;
+            --brand-light: #FF6B4A;
+            --brand-pale: #FFF0ED;
+            --text-dark: #0F0F0F;
+            --text-mid: #5A5A5A;
+            --surface: #FAFAFA;
+            --border: #EBEBEB;
+        }
+
+        body {
+            background: #fff;
+            color: var(--text-dark);
+        }
+
+        .btn-primary {
+            background: var(--brand) !important;
+            border-color: var(--brand) !important;
+            color: #fff !important;
+        }
+
+        .btn-primary:hover {
+            background: var(--brand-light) !important;
+            border-color: var(--brand-light) !important;
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 2px 10px rgba(15, 15, 15, 0.04);
+        }
+
+        .app-nav {
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            background: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid var(--border);
+            min-height: 64px;
+        }
+
+        .app-logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--brand);
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+    </style>
+
+    <!-- AlpineJS -->
+    <script src="{% static 'js/utils.js' %}?v=20260221"></script>
+    <script defer src="{% static 'vendor/js/alpine.min.js' %}"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <div class="navbar app-nav px-3 sm:px-4">
+        <div class="navbar-start">
+            <a class="btn btn-ghost text-lg sm:text-xl normal-case gap-2" href="/">
+                <span class="app-logo-icon">
+                    <img src="{% static 'images/logo.svg' %}" alt="Vybra" class="h-5 w-5" style="filter:brightness(0) invert(1);">
+                </span>
+                <span class="font-bold">Vybra</span>
+            </a>
+        </div>
+        <div class="navbar-end">
+            <a href="/login/" class="btn btn-secondary min-h-[44px]">Вход</a>
+        </div>
+    </div>
+
+    <!-- Registration Form -->
+    <div class="min-h-screen flex items-center justify-center p-4 sm:p-6" x-data="registerForm()">
+        <div class="card w-full max-w-md bg-base-100 shadow-xl">
+            <div class="card-body p-5 sm:p-6">
+                <h2 class="card-title text-3xl mb-5 sm:mb-6 justify-center">Регистрация</h2>
+
+                <!-- Error Alert -->
+                <div x-show="error" x-cloak class="alert alert-error mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span x-text="error"></span>
+                </div>
+
+                <!-- Success Alert -->
+                <div x-show="success" x-cloak class="alert alert-success mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Регистрация успешна! Перенаправление...</span>
+                </div>
+
+                <!-- Registration Form -->
+                <form @submit.prevent="submitRegister()">
+                    <div class="form-control mb-4">
+                        <label class="label">
+                            <span class="label-text">Имя пользователя (опционально)</span>
+                        </label>
+                        <input
+                            type="text"
+                            x-model="username"
+                            placeholder="username"
+                            class="input input-bordered"
+                            :disabled="loading">
+                        <label class="label">
+                            <span class="label-text-alt">Если не указано, будет создан из email</span>
+                        </label>
+                    </div>
+
+                    <div class="form-control mb-4">
+                        <label class="label">
+                            <span class="label-text">Email*</span>
+                        </label>
+                        <input
+                            type="email"
+                            x-model="email"
+                            placeholder="your@email.com"
+                            class="input input-bordered"
+                            required
+                            :disabled="loading">
+                    </div>
+
+                    <div class="form-control mb-4">
+                        <label class="label">
+                            <span class="label-text">Пароль*</span>
+                        </label>
+                        <input
+                            type="password"
+                            x-model="password"
+                            placeholder="••••••••"
+                            class="input input-bordered"
+                            required
+                            minlength="6"
+                            :disabled="loading">
+                        <label class="label">
+                            <span class="label-text-alt">Минимум 6 символов</span>
+                        </label>
+                    </div>
+
+                    <div class="form-control mb-6">
+                        <label class="label">
+                            <span class="label-text">Подтвердите пароль*</span>
+                        </label>
+                        <input
+                            type="password"
+                            x-model="confirmPassword"
+                            placeholder="••••••••"
+                            class="input input-bordered"
+                            required
+                            :disabled="loading">
+                    </div>
+
+                    <div class="form-control mb-4">
+                        <label class="label cursor-pointer justify-start gap-3">
+                            <input type="checkbox" class="checkbox checkbox-primary" required :disabled="loading">
+                            <span class="label-text">
+                                Я согласен с <a href="/legal/terms/" class="link link-primary">условиями использования</a>
+                                и <a href="/legal/privacy/" class="link link-primary">политикой обработки персональных данных</a>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                            :disabled="loading">
+                            <span x-show="!loading">Зарегистрироваться</span>
+                            <span x-show="loading" class="loading loading-spinner"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Divider -->
+                <div class="divider">ИЛИ</div>
+
+                {% if google_enabled %}
+                <div class="mb-4">
+                    <a href="/google/login/" class="btn btn-outline w-full min-h-[44px]">
+                        Зарегистрироваться через Google
+                    </a>
+                </div>
+                {% endif %}
+
+                <!-- Login Link -->
+                <div class="text-center">
+                    <p class="text-sm opacity-70">
+                        Уже есть аккаунт?
+                        <a href="/login/" class="link link-primary font-semibold">Войти</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function registerForm() {
+            return {
+                username: '',
+                email: '',
+                password: '',
+                confirmPassword: '',
+                loading: false,
+                error: null,
+                success: false,
+
+                async submitRegister() {
+                    // Validation
+                    if (!this.email || !this.password || !this.confirmPassword) {
+                        this.error = 'Пожалуйста, заполните все обязательные поля';
+                        return;
+                    }
+
+                    if (this.password.length < 6) {
+                        this.error = 'Пароль должен содержать минимум 6 символов';
+                        return;
+                    }
+
+                    if (this.password !== this.confirmPassword) {
+                        this.error = 'Пароли не совпадают';
+                        return;
+                    }
+
+                    this.loading = true;
+                    beginGlobalLoading();
+                    this.error = null;
+
+                    try {
+                        const response = await fetch('/api/auth/register', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                username: this.username || undefined,
+                                email: this.email,
+                                password: this.password
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            // Save tokens to localStorage
+                            localStorage.setItem('access_token', data.access_token);
+                            localStorage.setItem('refresh_token', data.refresh_token);
+
+                            // Show success message
+                            this.success = true;
+
+                            // Redirect to dashboard after 1.5 seconds
+                            setTimeout(() => {
+                                window.location.href = '/dashboard/';
+                            }, 1500);
+                        } else {
+                            this.error = data.error || 'Ошибка регистрации';
+                        }
+                    } catch (error) {
+                        console.error('Registration error:', error);
+                        this.error = 'Ошибка подключения к серверу';
+                    } finally {
+                        this.loading = false;
+                        endGlobalLoading();
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

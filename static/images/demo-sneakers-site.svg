@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="800" height="800" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Кроссовки">
+  <rect width="70" height="70" fill="#FFFFFF"/>
+  <title>Fashion</title>
+  <path d="M69,43v5.17a0.79,0.79,0,0,1-.8.79H5.8A0.79,0.79,0,0,1,5,48.21V43H69Z" fill="#FF6B4A"/>
+  <path d="M69,43H52.67V42.92L56.55,32C63.17,32,69,36.44,69,43Z" fill="#FF6B4A"/>
+  <path d="M17,42.92V43H5V29C11.63,29,17,35.23,17,42.92Z" fill="#FF6B4A"/>
+  <path d="M50.15,27.81L56.55,32,52.67,42.92V43H17V42.92C17,35.23,11.63,29,5,29V25.21a4,4,0,0,1,4-4h4l0.63,0.34c1.51,2.14,3.37,5.8,9.21,5.63,5.66-.16,7.51-3.41,9.09-5.47A2,2,0,0,1,33.47,21H38a5.94,5.94,0,0,1,2.52.56l4.88,3.17Z" fill="#FFF0ED"/>
+  <line x1="1" y1="43" x2="65" y2="43" fill="none" stroke="#0F0F0F" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+  <path d="M1,29c6.63,0,12,6.24,12,13.93" fill="none" stroke="#0F0F0F" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+  <path d="M65,48.2a0.8,0.8,0,0,1-.8.8H1.8A0.8,0.8,0,0,1,1,48.2v-23a4,4,0,0,1,4-4H9l0.63,0.34c1.51,2.14,3.37,5.8,9.21,5.63,5.66-.16,7.51-3.41,9.09-5.47A2,2,0,0,1,29.47,21H34a5.94,5.94,0,0,1,2.52.56L52.55,32C59.17,32,65,36.44,65,43V48.2Z" fill="none" stroke="#0F0F0F" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+  <line x1="52.55" y1="31.98" x2="48.67" y2="42.92" fill="none" stroke="#0F0F0F" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+  <polyline points="41.42 24.72 41.41 24.73 35.75 30.36" fill="none" stroke="#0F0F0F" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+  <line x1="46.15" y1="27.81" x2="41.42" y2="32.51" fill="none" stroke="#0F0F0F" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+</svg>

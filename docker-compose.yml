@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: vybra
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command: postgres -c shared_buffers=128MB -c max_connections=40
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+
+  web:
+    build: .
+    command: sh -c "python manage.py migrate --noinput && gunicorn vybra.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 60 --keep-alive 5 --max-requests 300 --max-requests-jitter 30 --access-logfile - --error-logfile -"
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - SECURE_SSL_REDIRECT=False
+      - ALLOWED_HOSTS=*
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=vybra
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  celery:
+    build: .
+    command: celery -A vybra worker -l info --pool=solo --concurrency=1 --without-gossip --without-mingle --without-heartbeat --max-tasks-per-child=100
+    environment:
+      - DEBUG=False
+      - ALLOWED_HOSTS=*
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=vybra
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:

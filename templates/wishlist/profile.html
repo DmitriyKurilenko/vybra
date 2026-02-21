@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль - Vybra{% endblock %}
+
+{% block content %}
+<div x-data="profile()" x-init="init()" class="page-shell space-y-4 sm:space-y-5">
+    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mb-3 sm:mb-4 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+        <span>Профиль</span>
+    </h1>
+
+    <!-- Profile Form -->
+    <div class="card bg-base-100">
+        <div class="card-body p-4 sm:p-5">
+            <h2 class="card-title text-lg mb-3">Личные данные</h2>
+            
+            <div class="form-control mb-3">
+                <label class="label py-1">
+                    <span class="label-text text-sm">Имя пользователя</span>
+                </label>
+                <input type="text" x-model="profile.username" disabled 
+                       class="input input-bordered input-sm w-full bg-base-200" />
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label py-1">
+                    <span class="label-text text-sm">Имя</span>
+                </label>
+                <input type="text" x-model="profile.first_name" 
+                       class="input input-bordered input-sm w-full" />
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label py-1">
+                    <span class="label-text text-sm">Фамилия</span>
+                </label>
+                <input type="text" x-model="profile.last_name" 
+                       class="input input-bordered input-sm w-full" />
+            </div>
+
+            <div class="form-control mb-3">
+                <label class="label py-1">
+                    <span class="label-text text-sm">Email</span>
+                </label>
+                <input type="email" x-model="profile.email" 
+                       class="input input-bordered input-sm w-full" />
+            </div>
+
+            <div class="form-control mb-4">
+                <label class="label py-1">
+                    <span class="label-text text-sm">Телефон</span>
+                </label>
+                <input type="tel" x-model="profile.phone" 
+                       class="input input-bordered input-sm w-full" 
+                       placeholder="+7 (999) 123-45-67" />
+            </div>
+
+            <button @click="saveProfile()" class="btn btn-primary btn-sm w-full min-h-[44px]" :disabled="saving">
+                <span x-show="!saving">Сохранить изменения</span>
+                <span x-show="saving" class="loading loading-spinner loading-sm"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card bg-base-100">
+        <div class="card-body p-4 sm:p-5">
+            <h2 class="card-title text-lg mb-3">Действия</h2>
+            
+            <button @click="resetStats()" class="btn btn-warning btn-sm w-full min-h-[44px] mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v6h6M20 20v-6h-6M20 9a8 8 0 00-14.9-3M4 15a8 8 0 0014.9 3" />
+                </svg>
+                <span>Обнулить статистику</span>
+            </button>
+            
+            <button @click="deleteAllItems()" class="btn btn-error btn-sm w-full min-h-[44px] mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m3 0V4a1 1 0 011-1h6a1 1 0 011 1v3M4 7h16" />
+                </svg>
+                <span>Удалить все товары</span>
+            </button>
+            
+            <button @click="logout()" class="btn btn-neutral btn-sm w-full min-h-[44px]">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H9m4 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span>Выйти</span>
+            </button>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function profile() {
+    return {
+        profile: {
+            username: '',
+            email: '',
+            first_name: '',
+            last_name: '',
+            phone: ''
+        },
+        saving: false,
+
+        async init() {
+            if (!requireAuth()) return;
+            await this.loadProfile();
+        },
+
+        async loadProfile() {
+            try {
+                const response = await authFetch('/api/wishlist/profile');
+                const data = await response.json();
+                this.profile = data;
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                this.notify('Профиль', 'Ошибка загрузки профиля', 'error');
+            }
+        },
+
+        async saveProfile() {
+            this.saving = true;
+            try {
+                const response = await authFetch('/api/wishlist/profile', {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        first_name: this.profile.first_name,
+                        last_name: this.profile.last_name,
+                        email: this.profile.email,
+                        phone: this.profile.phone
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.profile = data;
+                    this.notify('Профиль', 'Профиль обновлён', 'success');
+                } else {
+                    this.notify('Профиль', 'Ошибка сохранения', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving profile:', error);
+                this.notify('Профиль', 'Ошибка сохранения', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async resetStats() {
+            if (!confirm('Вы уверены? Это обнулит все рейтинги ELO и удалит историю сравнений.')) {
+                return;
+            }
+
+            try {
+                const response = await authFetch('/api/wishlist/profile/reset-stats', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    this.notify('Профиль', 'Статистика обнулена', 'success');
+                } else {
+                    this.notify('Профиль', 'Ошибка обнуления статистики', 'error');
+                }
+            } catch (error) {
+                console.error('Error resetting stats:', error);
+                this.notify('Профиль', 'Ошибка обнуления статистики', 'error');
+            }
+        },
+
+        async deleteAllItems() {
+            if (!confirm('Вы уверены? Это удалит ВСЕ товары из вишлиста. Это действие нельзя отменить.')) {
+                return;
+            }
+
+            try {
+                const response = await authFetch('/api/wishlist/profile/delete-all-items', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    this.notify('Профиль', 'Все товары удалены', 'success');
+                    window.location.href = '/items/';
+                } else {
+                    this.notify('Профиль', 'Ошибка удаления товаров', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting items:', error);
+                this.notify('Профиль', 'Ошибка удаления товаров', 'error');
+            }
+        },
+
+        logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/login/';
+        },
+
+        notify(title, message, type = 'info') {
+            window.dispatchEvent(new CustomEvent('vybra:notify', {
+                detail: { title, message, type, createdAt: Date.now() }
+            }));
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - Vybra</title>
+
+    <!-- Precompiled Tailwind CSS -->
+    <link href="{% static 'css/tailwind.generated.css' %}" rel="stylesheet" type="text/css" />
+    <link href="{% static 'css/meraki-ui.css' %}" rel="stylesheet" type="text/css" />
+
+    <style>
+        :root {
+            --brand: #FF4B2B;
+            --brand-light: #FF6B4A;
+            --brand-pale: #FFF0ED;
+            --text-dark: #0F0F0F;
+            --text-mid: #5A5A5A;
+            --surface: #FAFAFA;
+            --border: #EBEBEB;
+        }
+
+        body {
+            background: #fff;
+            color: var(--text-dark);
+        }
+
+        .btn-primary {
+            background: var(--brand) !important;
+            border-color: var(--brand) !important;
+            color: #fff !important;
+        }
+
+        .btn-primary:hover {
+            background: var(--brand-light) !important;
+            border-color: var(--brand-light) !important;
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 2px 10px rgba(15, 15, 15, 0.04);
+        }
+
+        .app-nav {
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            background: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid var(--border);
+            min-height: 64px;
+        }
+
+        .app-logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--brand);
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+    </style>
+
+    <!-- AlpineJS -->
+    <script defer src="{% static 'vendor/js/alpine.min.js' %}"></script>
+        <script src="{% static 'js/utils.js' %}?v=20260221"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <div class="navbar app-nav px-3 sm:px-4">
+        <div class="navbar-start">
+            <a class="btn btn-ghost text-lg sm:text-xl normal-case gap-2" href="/">
+                <span class="app-logo-icon">
+                    <img src="{% static 'images/logo.svg' %}" alt="Vybra" class="h-5 w-5" style="filter:brightness(0) invert(1);">
+                </span>
+                <span class="font-bold">Vybra</span>
+            </a>
+        </div>
+        <div class="navbar-end">
+            <a href="/register/" class="btn btn-primary min-h-[44px]">Регистрация</a>
+        </div>
+    </div>
+
+    <!-- Login Form -->
+    <div class="min-h-screen flex items-center justify-center p-4 sm:p-6" x-data="loginForm()">
+        <div class="card w-full max-w-md bg-base-100 shadow-xl">
+            <div class="card-body p-5 sm:p-6">
+                <h2 class="card-title text-3xl mb-5 sm:mb-6 justify-center">Вход в Vybra</h2>
+
+                <!-- Error Alert -->
+                <div x-show="error" x-cloak class="alert alert-error mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span x-text="error"></span>
+                </div>
+
+                <!-- Login Form -->
+                <form @submit.prevent="submitLogin()">
+                    <div class="form-control mb-4">
+                        <label class="label">
+                            <span class="label-text">Email</span>
+                        </label>
+                        <input
+                            type="email"
+                            x-model="email"
+                            placeholder="your@email.com"
+                            class="input input-bordered"
+                            required
+                            :disabled="loading">
+                    </div>
+
+                    <div class="form-control mb-6">
+                        <label class="label">
+                            <span class="label-text">Пароль</span>
+                        </label>
+                        <input
+                            type="password"
+                            x-model="password"
+                            placeholder="••••••••"
+                            class="input input-bordered"
+                            required
+                            :disabled="loading">
+                        <label class="label">
+                            <a href="#" class="label-text-alt link link-hover">Забыли пароль?</a>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                            :disabled="loading">
+                            <span x-show="!loading">Войти</span>
+                            <span x-show="loading" class="loading loading-spinner"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Divider -->
+                <div class="divider">
+                    
+                </div>
+
+                {% if google_enabled %}
+                <div class="mb-4">
+                    <a href="/google/login/" class="btn btn-outline w-full min-h-[44px]">
+                        Войти через Google
+                    </a>
+                </div>
+                {% endif %}
+
+                <!-- Register Link -->
+                <div class="text-center">
+                    <p class="text-sm opacity-70">
+                        Нет аккаунта?
+                        <a href="/register/" class="link link-primary font-semibold">Зарегистрируйтесь</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loginForm() {
+            return {
+                email: '',
+                password: '',
+                loading: false,
+                error: null,
+
+                async submitLogin() {
+                    // Validation
+                    if (!this.email || !this.password) {
+                        this.error = 'Пожалуйста, заполните все поля';
+                        return;
+                    }
+
+                    this.loading = true;
+                    this.error = null;
+                        beginGlobalLoading();
+
+                    try {
+                        const response = await fetch('/api/auth/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                email: this.email,
+                                password: this.password
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            // Save tokens to localStorage
+                            localStorage.setItem('access_token', data.access_token);
+                            localStorage.setItem('refresh_token', data.refresh_token);
+
+                            // Redirect to dashboard
+                            window.location.href = '/dashboard/';
+                        } else {
+                            this.error = data.error || 'Неверный email или пароль';
+                        }
+                    } catch (error) {
+                        console.error('Login error:', error);
+                        this.error = 'Ошибка подключения к серверу';
+                    } finally {
+                            endGlobalLoading();
+                        this.loading = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
