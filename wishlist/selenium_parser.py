@@ -66,7 +66,7 @@ class SeleniumWildberriesParser:
         chrome_options.add_argument('--safebrowsing-disable-auto-update')
         chrome_options.add_argument('--js-flags=--max-old-space-size=128')
         chrome_options.add_argument('--window-size=800,600')
-        chrome_options.add_argument('--crash-dumps-dir=/tmp')
+        chrome_options.add_argument('--disable-crash-reporter')
 
         # Обход детекции автоматизации
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
