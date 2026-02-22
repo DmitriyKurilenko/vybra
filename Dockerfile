@@ -7,7 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Системные зависимости + Chromium одним слоем чтобы минимизировать RAM во время сборки
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN echo '#!/bin/sh\nexit 101' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d \
+    && apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     gcc \
     curl \
@@ -32,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
+    && rm -f /usr/sbin/policy-rc.d \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # Python-зависимости

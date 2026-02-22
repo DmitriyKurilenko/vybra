@@ -145,6 +145,10 @@ fi
 
 sudo ln -sfn "$SITE_PATH" "$ENABLED_PATH"
 sudo nginx -t
-sudo systemctl reload nginx
+if systemctl is-active --quiet nginx; then
+  systemctl reload nginx
+else
+  systemctl enable --now nginx
+fi
 
 echo "nginx config applied successfully ($MODE mode)"

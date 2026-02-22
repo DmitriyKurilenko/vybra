@@ -69,7 +69,7 @@ CERTBOT_WEBROOT="${CERTBOT_WEBROOT:-/var/www/certbot}"
 
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}║            Vybra — первоначальная установка              ║${RESET}"
+echo -e "${BOLD}║            ${DOMAIN} — первоначальная установка              ║${RESET}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${RESET}"
 echo "  Домен   : $DOMAIN${WWW_DOMAIN:+ / $WWW_DOMAIN}"
 echo "  E-mail  : $CERTBOT_EMAIL"
