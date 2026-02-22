@@ -136,8 +136,10 @@ fi
 if [[ "$SKIP_BUILD" != "1" ]]; then
   docker system prune -f --filter "until=24h" || true
   log "Сборка образов (место: $(df -h / | awk 'NR==2{print $4}'))"
-  DOCKER_BUILDKIT=0 compose_cmd build 2>&1 | tee /tmp/docker-build.log \
-    || { tail -30 /tmp/docker-build.log; die "Сборка образов завершилась с ошибкой"; }
+  DOCKER_BUILDKIT=0 compose_cmd build 2>&1 \
+    | tee /tmp/docker-build.log \
+    | grep -vE "^(Step [0-9]+/[0-9]+ :| ---> |Removing intermediate container |Successfully built |Successfully tagged )" \
+    ; [[ "${PIPESTATUS[0]}" -eq 0 ]] || { tail -30 /tmp/docker-build.log; die "Сборка образов завершилась с ошибкой"; }
 fi
 
 # ─── 5. Запуск сервисов ───────────────────────────────────────────────────────
