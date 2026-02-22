@@ -64,11 +64,15 @@ sudo mkdir -p "$CERTBOT_WEBROOT"
 
 # ─── Установка nginx если нет ──────────────────────────────────────────────
 if ! command -v nginx >/dev/null 2>&1; then
-  echo "nginx не найден — устанавливаю..."
+  echo "nginx не найден — устанавливаю из official repo..."
+  curl -fsSL https://nginx.org/keys/nginx_signing.key | gpg --dearmor -o /usr/share/keyrings/nginx.gpg
+  echo "deb [signed-by=/usr/share/keyrings/nginx.gpg] https://nginx.org/packages/mainline/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) nginx" \
+    > /etc/apt/sources.list.d/nginx.list
   apt-get update -qq && apt-get install -y nginx
 fi
 
 mkdir -p "$(dirname "$SITE_PATH")" "$(dirname "$ENABLED_PATH")"
+
 
 if [[ "$MODE" == "pre" ]]; then
   sudo tee "$SITE_PATH" >/dev/null <<EOF

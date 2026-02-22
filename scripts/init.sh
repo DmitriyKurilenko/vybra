@@ -91,8 +91,11 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 if ! command -v nginx >/dev/null 2>&1; then
-  log "Установка nginx..."
-  apt-get install -y nginx
+  log "Установка nginx (official repo)..."
+  curl -fsSL https://nginx.org/keys/nginx_signing.key | gpg --dearmor -o /usr/share/keyrings/nginx.gpg
+  echo "deb [signed-by=/usr/share/keyrings/nginx.gpg] https://nginx.org/packages/mainline/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) nginx" \
+    > /etc/apt/sources.list.d/nginx.list
+  apt-get update -qq && apt-get install -y nginx
 fi
 
 if ! command -v certbot >/dev/null 2>&1; then
