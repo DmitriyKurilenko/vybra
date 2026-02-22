@@ -48,6 +48,7 @@ class SeleniumWildberriesParser:
 
         # Оптимизация производительности
         chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-setuid-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
@@ -110,7 +111,13 @@ class SeleniumWildberriesParser:
                     or shutil.which('chromedriver')
                     or '/usr/local/bin/chromedriver'
                 )
-                service = Service(chromedriver_path)
+                log_path = '/tmp/chromedriver.log'
+                service = Service(
+                    chromedriver_path,
+                    log_output=log_path,
+                    service_args=['--verbose'],
+                )
+                logger.info(f"ChromeDriver: {chromedriver_path}, binary: {chrome_options.binary_location}, log: {log_path}")
                 self.driver = webdriver.Chrome(service=service, options=chrome_options)
 
             # Скрываем признаки webdriver
@@ -122,6 +129,11 @@ class SeleniumWildberriesParser:
 
         except Exception as e:
             logger.error(f"Ошибка инициализации WebDriver: {e}")
+            try:
+                with open('/tmp/chromedriver.log', 'r') as f:
+                    logger.error(f"ChromeDriver log:\n{f.read()[-3000:]}")
+            except Exception:
+                pass
             raise
 
     def _close_driver(self):
