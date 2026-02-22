@@ -40,9 +40,16 @@ log() { echo "==> [$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 # ─── Проверки ─────────────────────────────────────────────────────────────────
 if ! command -v certbot >/dev/null 2>&1; then
-  log "certbot не найден — устанавливаю через snap..."
-  sudo snap install --classic certbot
-  sudo ln -sf /snap/bin/certbot /usr/bin/certbot
+  log "certbot не найден — устанавливаю..."
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y certbot
+  elif command -v snap >/dev/null 2>&1; then
+    snap install --classic certbot
+    ln -sf /snap/bin/certbot /usr/bin/certbot
+  else
+    echo "ОШИБКА: не знаю как установить certbot (нет apt-get и snap)" >&2
+    exit 1
+  fi
 fi
 
 # ─── Обновление сертификата ───────────────────────────────────────────────────

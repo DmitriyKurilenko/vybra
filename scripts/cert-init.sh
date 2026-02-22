@@ -9,10 +9,10 @@
 #   sudo ./scripts/cert-init.sh
 #
 # Предварительные условия:
-#   1. Certbot установлен:  sudo snap install --classic certbot
-#   2. Nginx запущен и отдаёт /.well-known/acme-challenge/ из CERTBOT_WEBROOT
+#   1. Nginx запущен и отдаёт /.well-known/acme-challenge/ из CERTBOT_WEBROOT
 #      → sudo ./scripts/nginx-setup.sh --mode pre
-#   3. DNS для домена указывает на этот сервер
+#   2. DNS для домена указывает на этот сервер
+#   3. Certbot будет установлен автоматически если не найден
 #
 set -Eeuo pipefail
 
@@ -81,9 +81,16 @@ if [[ ! "$CERTBOT_EMAIL" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
 fi
 
 if ! command -v certbot >/dev/null 2>&1; then
-  echo "certbot не найден — устанавливаю через snap..."
-  sudo snap install --classic certbot
-  sudo ln -sf /snap/bin/certbot /usr/bin/certbot
+  echo "certbot не найден — устанавливаю..."
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y certbot
+  elif command -v snap >/dev/null 2>&1; then
+    snap install --classic certbot
+    ln -sf /snap/bin/certbot /usr/bin/certbot
+  else
+    echo "ОШИБКА: не знаю как установить certbot (нет apt-get и snap)" >&2
+    exit 1
+  fi
   echo "✓ certbot установлен"
 fi
 

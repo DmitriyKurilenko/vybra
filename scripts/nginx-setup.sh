@@ -62,6 +62,14 @@ ENABLED_PATH="$NGINX_ENABLED_PATH"
 
 sudo mkdir -p "$CERTBOT_WEBROOT"
 
+# ─── Установка nginx если нет ──────────────────────────────────────────────
+if ! command -v nginx >/dev/null 2>&1; then
+  echo "nginx не найден — устанавливаю..."
+  apt-get update -qq && apt-get install -y nginx
+fi
+
+mkdir -p "$(dirname "$SITE_PATH")" "$(dirname "$ENABLED_PATH")"
+
 if [[ "$MODE" == "pre" ]]; then
   sudo tee "$SITE_PATH" >/dev/null <<EOF
 server {

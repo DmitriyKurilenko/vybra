@@ -85,8 +85,19 @@ log "Рабочая директория: $ROOT_DIR"
 [[ -f "$ENV_FILE" ]] || die "Файл окружения не найден: $ENV_FILE
 Заполните $ENV_FILE (см. комментарии CHANGE_ME внутри)"  
 
-command -v docker >/dev/null 2>&1 || die "Docker не установлен или недоступен"
-docker info >/dev/null 2>&1 || die "Docker daemon не запущен или нет прав доступа"
+if ! command -v docker >/dev/null 2>&1; then
+  log "Docker не найден — устанавливаю..."
+  if ! command -v curl >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y curl
+  fi
+  curl -fsSL https://get.docker.com | sh
+  systemctl enable --now docker
+fi
+docker info >/dev/null 2>&1 || die "Docker daemon не запущен. Запустите: systemctl start docker"
+
+if ! command -v git >/dev/null 2>&1; then
+  apt-get update -qq && apt-get install -y git
+fi
 
 # ─── 1. Обновление репозитория ────────────────────────────────────────────────
 if [[ "$SKIP_PULL" != "1" && -d .git ]]; then
