@@ -1,40 +1,19 @@
 FROM python:3.11-slim
 
-# Образ для celery-worker — содержит Chromium для Selenium-парсера.
-# Для web и celery-beat используйте обычный Dockerfile (без Chromium).
+# Образ для celery-worker.
+# Chrome запускается в отдельном selenium-контейнере (см. docker-compose).
+# Этот образ только запускает задачи и подключается к selenium по HTTP.
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive \
-    CHROME_BIN=/usr/bin/chromium \
-    CHROMEDRIVER_PATH=/usr/bin/chromedriver
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN echo '#!/bin/sh\nexit 101' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d \
-    && apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     curl \
-    chromium \
-    chromium-driver \
-    fonts-liberation \
-    libnss3 \
-    libgbm1 \
-    libasound2 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    && rm -f /usr/sbin/policy-rc.d \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && find /usr/lib /usr/bin -name "chrome_crashpad_handler" -delete \
-    && echo "Crashpad handler removed"
+    && rm -rf /var/lib/apt/lists/*
 
 # Python-зависимости
 COPY requirements.txt /app/

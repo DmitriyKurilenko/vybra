@@ -66,6 +66,7 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - REDIS_URL=redis://redis:6379/0
+      - SELENIUM_REMOTE_URL=http://selenium:4444/wd/hub
     volumes:
       - media_data:/app/media
     depends_on:
@@ -73,6 +74,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      selenium:
+        condition: service_healthy
+
+  selenium:
+    image: selenium/standalone-chromium:4
+    shm_size: 256m
+    environment:
+      - SE_NODE_MAX_SESSIONS=1
+      - SE_NODE_SESSION_TIMEOUT=120
+      - SE_VNC_NO_PASSWORD=1
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4444/wd/hub/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   celery-beat:
     build: .
