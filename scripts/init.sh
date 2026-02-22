@@ -81,6 +81,18 @@ step "1/6  Системные зависимости"
 
 apt-get update -qq
 
+# ─── Swap (если ОЗУ < 2GB — нужен для сборки образа с Chromium) ──────────────
+TOTAL_RAM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+if [[ $TOTAL_RAM_MB -lt 2048 ]] && ! swapon --show | grep -q /swapfile; then
+  log "RAM ${TOTAL_RAM_MB}MB < 2GB — создаю swapfile 2GB..."
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  log "Swap активирован"
+fi
+
 if ! command -v curl >/dev/null 2>&1; then
   apt-get install -y curl
 fi

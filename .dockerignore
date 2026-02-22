@@ -16,6 +16,10 @@ venv/
 .venv/
 env/
 
+# Secrets
+.env
+.env.*
+
 # Node build tooling (not needed in runtime image)
 node_modules/
 npm-debug.log
@@ -24,6 +28,7 @@ npm-debug.log
 logs/
 celerybeat-schedule
 *.pid
+backups/
 
 # Editor / OS
 .vscode/
@@ -33,3 +38,6 @@ celerybeat-schedule
 # Build artifacts
 staticfiles/
 media/
+
+# Scripts (not needed inside container)
+scripts/

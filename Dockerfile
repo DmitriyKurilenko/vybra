@@ -1,20 +1,16 @@
 FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
 
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies including Chromium for Selenium
-RUN apt-get update && apt-get install -y \
+# Системные зависимости + Chromium одним слоем чтобы минимизировать RAM во время сборки
+RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     gcc \
-    wget \
     curl \
-    unzip \
-    # Chromium and runtime dependencies (нужны для celery-воркера с Selenium)
     chromium \
     chromium-driver \
     fonts-liberation \
@@ -36,24 +32,24 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install Python dependencies
+# Python-зависимости
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
-# Copy project
+# Исходники
 COPY . /app/
 
-# Collect static files at build time.
-# SECRET_KEY и JWT_SECRET_KEY нужны только чтобы Django запустился —
-# для collectstatic реальные секреты не требуются.
+# Staticfiles собираются во время сборки образа.
+# Реальные секреты для collectstatic не нужны.
 ARG SECRET_KEY=build-time-dummy-key-not-used-in-production
 ARG JWT_SECRET_KEY=build-time-dummy-jwt-key-not-used-in-production
 RUN SECRET_KEY="$SECRET_KEY" JWT_SECRET_KEY="$JWT_SECRET_KEY" \
     python manage.py collectstatic --noinput
 
-# Создаём непривилегированного пользователя для запуска приложения
+# Непривилегированный пользователь
 RUN groupadd --gid 1001 appgroup \
     && useradd --uid 1001 --gid appgroup --shell /bin/bash --no-create-home appuser \
     && chown -R appuser:appgroup /app
