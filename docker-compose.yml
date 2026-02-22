@@ -51,7 +51,9 @@ services:
         condition: service_healthy
 
   celery:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
     command: celery -A vybra worker -l info --pool=solo --concurrency=1 --without-gossip --without-mingle --without-heartbeat --max-tasks-per-child=100
     environment:
       - DEBUG=False

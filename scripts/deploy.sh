@@ -141,7 +141,10 @@ if [[ "$NO_BACKUP" != "1" ]]; then
 fi
 
 # ─── 4. Сборка образов ────────────────────────────────────────────────────────
-if [[ "$SKIP_BUILD" != "1" ]]; then
+if [[ "$SKIP_BUILD" != "1" ]]; then  # Очищаем неиспользуемые образы/контейнеры/кеш чтобы освободить место на SSD
+  log "Очистка Docker-кеша (не затрагивает волюмы)..."
+  docker system prune -f --filter "until=24h" || true
+  log "Свободное место: $(df -h / | awk 'NR==2{print $4}')"
   log "Сборка Docker-образов"
   # DOCKER_BUILDKIT=0 — legacy builder, меньше RAM чем BuildKit (важно для VPS)
   DOCKER_BUILDKIT=0 compose_cmd build --progress=plain 2>&1 | tee /tmp/docker-build.log \
