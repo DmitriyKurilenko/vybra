@@ -134,7 +134,7 @@ fi
 
 # ─── 4. Сборка образов ────────────────────────────────────────────────────────
 if [[ "$SKIP_BUILD" != "1" ]]; then
-  docker system prune -f --filter "until=24h" -q || true
+  docker system prune -f --filter "until=24h" || true
   log "Сборка образов (место: $(df -h / | awk 'NR==2{print $4}'))"
   DOCKER_BUILDKIT=0 compose_cmd build 2>&1 | tee /tmp/docker-build.log \
     || { tail -30 /tmp/docker-build.log; die "Сборка образов завершилась с ошибкой"; }
