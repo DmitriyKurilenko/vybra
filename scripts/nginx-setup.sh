@@ -19,8 +19,7 @@ MODE=""
 DOMAIN="${DOMAIN:-}"
 WWW_DOMAIN="${WWW_DOMAIN:-}"
 APP_UPSTREAM="${APP_UPSTREAM:-127.0.0.1:8000}"
-NGINX_CONF_PATH="${NGINX_CONF_PATH:-/etc/nginx/sites-available/vybra.conf}"
-NGINX_ENABLED_PATH="${NGINX_ENABLED_PATH:-/etc/nginx/sites-enabled/vybra.conf}"
+NGINX_CONF_PATH="${NGINX_CONF_PATH:-/etc/nginx/conf.d/vybra.conf}"
 CERTBOT_WEBROOT="${CERTBOT_WEBROOT:-/var/www/certbot}"
 
 # ─── CLI-аргументы (переопределяют .env) ─────────────────────────────
@@ -60,7 +59,6 @@ if [[ -n "$WWW_DOMAIN" ]]; then
 fi
 
 SITE_PATH="$NGINX_CONF_PATH"
-ENABLED_PATH="$NGINX_ENABLED_PATH"
 
 mkdir -p "$CERTBOT_WEBROOT"
 
@@ -73,7 +71,7 @@ if ! command -v nginx >/dev/null 2>&1; then
   apt-get update -qq && apt-get install -y nginx
 fi
 
-mkdir -p "$(dirname "$SITE_PATH")" "$(dirname "$ENABLED_PATH")"
+mkdir -p "$(dirname "$SITE_PATH")"
 
 
 if [[ "$MODE" == "pre" ]]; then
@@ -145,11 +143,6 @@ server {
 EOF
 fi
 
-if [[ -f /etc/nginx/sites-enabled/default ]]; then
-  rm -f /etc/nginx/sites-enabled/default
-fi
-
-ln -sfn "$SITE_PATH" "$ENABLED_PATH"
 nginx -t
 if systemctl is-active --quiet nginx; then
   systemctl reload nginx
