@@ -1,0 +1,5 @@
+#!/bin/sh
+# Crashpad handler stub for Docker environments.
+# Chrome requires this process to exist and stay alive.
+# We ignore all arguments and just sleep indefinitely.
+exec sleep infinity
