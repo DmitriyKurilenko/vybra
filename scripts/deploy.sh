@@ -140,8 +140,9 @@ fi
 # ─── 4. Сборка образов ────────────────────────────────────────────────────────
 if [[ "$SKIP_BUILD" != "1" ]]; then
   log "Сборка Docker-образов"
-  # BUILDKIT_MAX_PARALLELISM=1 снижает пиковое потребление RAM на VPS
-  BUILDKIT_MAX_PARALLELISM=1 compose_cmd build --pull --progress=plain
+  # DOCKER_BUILDKIT=0 — legacy builder, меньше RAM чем BuildKit (важно для VPS)
+  DOCKER_BUILDKIT=0 compose_cmd build --progress=plain 2>&1 | tee /tmp/docker-build.log \
+    || { echo ""; echo "=== ПОСЛЕДНИЕ СТРОКИ ЛОГА ==="; tail -30 /tmp/docker-build.log; die "Сборка образов завершилась с ошибкой"; }
 fi
 
 # ─── 5. Запуск сервисов ───────────────────────────────────────────────────────
