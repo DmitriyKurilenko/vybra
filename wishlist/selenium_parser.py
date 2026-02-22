@@ -53,20 +53,19 @@ class SeleniumWildberriesParser:
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 
         # Экономия памяти (критично для low-RAM сервера)
-        chrome_options.add_argument('--no-zygote')
-        chrome_options.add_argument('--single-process')
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-background-networking')
         chrome_options.add_argument('--disable-default-apps')
         chrome_options.add_argument('--disable-translate')
         chrome_options.add_argument('--disable-sync')
-        chrome_options.add_argument('--disable-web-security')
         chrome_options.add_argument('--disable-features=TranslateUI,BlinkGenPropertyTrees')
         chrome_options.add_argument('--hide-scrollbars')
         chrome_options.add_argument('--mute-audio')
         chrome_options.add_argument('--metrics-recording-only')
         chrome_options.add_argument('--safebrowsing-disable-auto-update')
         chrome_options.add_argument('--js-flags=--max-old-space-size=128')
+        chrome_options.add_argument('--window-size=800,600')
+        chrome_options.add_argument('--crash-dumps-dir=/tmp')
 
         # Обход детекции автоматизации
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -79,8 +78,7 @@ class SeleniumWildberriesParser:
             'Chrome/131.0.0.0 Safari/537.36'
         )
 
-        # Размер окна
-        chrome_options.add_argument('--window-size=1920,1080')
+        # Размер окна (убран — задан выше в блоке экономии памяти)
 
         remote_url = os.getenv('SELENIUM_REMOTE_URL')
         chrome_binary = os.getenv('CHROME_BIN')
