@@ -137,10 +137,9 @@ docker info >/dev/null 2>&1 || die "Docker daemon не запущен"
 log "Все зависимости установлены"
 
 # ─── ШАГ 2: Подготовка директорий ────────────────────────────────────────────
-step "2/6  Подготовка"
+step "2/5  Подготовка"
 
 mkdir -p \
-  "$CERTBOT_WEBROOT" \
   "${BACKUP_DIR:-$ROOT_DIR/backups}" \
   "$ROOT_DIR/staticfiles" \
   "$ROOT_DIR/media"
@@ -153,25 +152,13 @@ if [[ -f /etc/nginx/sites-enabled/default ]]; then
   fi
 fi
 
-log "Директории созданы"
-
-# ─── ШАГ 3: Nginx в HTTP-режиме (для certbot) ────────────────────────────────
-step "3/6  Nginx (HTTP-режим для сертификата)"
-
-bash "$SCRIPT_DIR/nginx-setup.sh" --mode pre
-log "Nginx настроен в HTTP-режиме"
-
-# ─── ШАГ 4: Получение TLS-сертификата ────────────────────────────────────────
-step "4/6  TLS-сертификат Let's Encrypt"
-
+# ─── ШАГ 3: TLS-сертификат ─────────────────────────────────────────────────────────────────
+step "3/5  TLS-сертификат Let's Encrypt"
 bash "$SCRIPT_DIR/cert-init.sh"
-log "Сертификат получен"
 
-# ─── ШАГ 5: Nginx в HTTPS-режиме ─────────────────────────────────────────────
-step "5/6  Nginx (HTTPS-режим)"
-
+# ─── ШАГ 4: Nginx HTTPS ─────────────────────────────────────────────────────────────────────
+step "4/5  Nginx (HTTPS)"
 bash "$SCRIPT_DIR/nginx-setup.sh" --mode post
-log "Nginx переключён в HTTPS-режим"
 
 # Systemd таймер для автообновления сертификата
 TIMER_PATH=/etc/systemd/system/certbot-renew.service
@@ -200,11 +187,10 @@ WantedBy=timers.target
 EOF
   systemctl daemon-reload
   systemctl enable --now certbot-renew.timer
-  log "Автообновление сертификата настроено (systemd timer)"
 fi
 
 # ─── ШАГ 5: Первый деплой ───────────────────────────────────────────────────────────
-step "5/5  Деплой приложения"
+step "5/5  Деплой"
 
 bash "$SCRIPT_DIR/deploy.sh" --skip-pull --no-backup
 

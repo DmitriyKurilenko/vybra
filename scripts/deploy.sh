@@ -77,16 +77,14 @@ compose_cmd() {
 }
 
 # ─── Утилиты ──────────────────────────────────────────────────────────────────
-log()  { echo "==> [$(date '+%H:%M:%S')] $*"; }
-warn() { echo "==> [WARN] $*" >&2; }
-die()  { echo "==> [FAIL] $*" >&2; exit 1; }
+log()  { echo "==> $*"; }
+warn() { echo "[WARN] $*" >&2; }
+die()  { echo "[FAIL] $*" >&2; exit 1; }
 
 # ─── Предварительные проверки ─────────────────────────────────────────────────
-log "Деплой запущен: $(date '+%Y-%m-%d %H:%M:%S')"
-log "Рабочая директория: $ROOT_DIR"
+log "Деплой $(date '+%Y-%m-%d %H:%M:%S') — $ROOT_DIR"
 
-[[ -f "$ENV_FILE" ]] || die "Файл окружения не найден: $ENV_FILE
-Заполните $ENV_FILE (см. комментарии CHANGE_ME внутри)"  
+[[ -f "$ENV_FILE" ]] || die "Файл окружения не найден: $ENV_FILE"
 
 if ! command -v docker >/dev/null 2>&1; then
   log "Docker не найден — устанавливаю..."
@@ -104,10 +102,9 @@ fi
 
 # ─── 1. Обновление репозитория ────────────────────────────────────────────────
 if [[ "$SKIP_PULL" != "1" && -d .git ]]; then
-  log "Обновление репозитория"
-  git fetch --all --prune
-  git pull --ff-only || die "git pull завершился с ошибкой"
-  log "Текущий коммит: $(git log -1 --oneline)"
+  git fetch --all --prune -q
+  git pull --ff-only -q || die "git pull завершился с ошибкой"
+  log "Коммит: $(git log -1 --oneline)"
 fi
 
 # ─── 2. Сборка frontend-ассетов ───────────────────────────────────────────────
@@ -117,9 +114,8 @@ if [[ -f package.json ]]; then
     curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
     apt-get install -y nodejs
   fi
-  log "Сборка frontend-ассетов"
   npm ci --silent
-  npm run build:css
+  npm run build:css --silent
 fi
 
 # ─── 3. Резервная копия БД ────────────────────────────────────────────────────
@@ -127,56 +123,44 @@ if [[ "$NO_BACKUP" != "1" ]]; then
   if compose_cmd ps --status running db 2>/dev/null | grep -q "db"; then
     mkdir -p "$BACKUP_DIR"
     BACKUP_FILE="$BACKUP_DIR/pre-deploy-$(date '+%Y%m%d_%H%M%S').sql.gz"
-    log "Создание резервной копии БД → $BACKUP_FILE"
     compose_cmd exec -T db \
       pg_dump -U "$DB_CONTAINER_USER" "$DB_CONTAINER_NAME" \
       | gzip -9 > "$BACKUP_FILE" \
-      && log "Резервная копия создана: $(du -sh "$BACKUP_FILE" | cut -f1)" \
+      && log "Бэкап: $(du -sh "$BACKUP_FILE" | cut -f1)" \
       || warn "Не удалось создать резервную копию (продолжаем)"
-    # Хранить только последние $BACKUP_KEEP бэкапов
     (cd "$BACKUP_DIR" && ls -t pre-deploy-*.sql.gz 2>/dev/null | tail -n +"$(( BACKUP_KEEP + 1 ))" | xargs -r rm --)
-  else
-    warn "Контейнер БД не запущен — пропускаем бэкап"
   fi
 fi
 
 # ─── 4. Сборка образов ────────────────────────────────────────────────────────
-if [[ "$SKIP_BUILD" != "1" ]]; then  # Очищаем неиспользуемые образы/контейнеры/кеш чтобы освободить место на SSD
-  log "Очистка Docker-кеша (не затрагивает волюмы)..."
-  docker system prune -f --filter "until=24h" || true
-  log "Свободное место: $(df -h / | awk 'NR==2{print $4}')"
-  log "Сборка Docker-образов"
-  # DOCKER_BUILDKIT=0 — legacy builder, меньше RAM чем BuildKit (важно для VPS)
-  DOCKER_BUILDKIT=0 compose_cmd build --progress=plain 2>&1 | tee /tmp/docker-build.log \
-    || { echo ""; echo "=== ПОСЛЕДНИЕ СТРОКИ ЛОГА ==="; tail -30 /tmp/docker-build.log; die "Сборка образов завершилась с ошибкой"; }
+if [[ "$SKIP_BUILD" != "1" ]]; then
+  docker system prune -f --filter "until=24h" -q || true
+  log "Сборка образов (место: $(df -h / | awk 'NR==2{print $4}'))"
+  DOCKER_BUILDKIT=0 compose_cmd build 2>&1 | tee /tmp/docker-build.log \
+    || { tail -30 /tmp/docker-build.log; die "Сборка образов завершилась с ошибкой"; }
 fi
 
 # ─── 5. Запуск сервисов ───────────────────────────────────────────────────────
-log "Запуск контейнеров"
 compose_cmd up -d --remove-orphans
 
 # ─── 6. Ожидание готовности БД ────────────────────────────────────────────────
-log "Ожидание готовности базы данных"
 MAX_RETRIES=30
 for i in $(seq 1 $MAX_RETRIES); do
   if compose_cmd exec -T db pg_isready -U "$DB_CONTAINER_USER" -q 2>/dev/null; then
-    log "База данных готова"
     break
   fi
   if [[ $i -eq $MAX_RETRIES ]]; then
     die "База данных не стала доступна за ${MAX_RETRIES} попыток"
   fi
-  echo -n "."
   sleep 2
 done
 
 # ─── 7. Проверка конфигурации Django ─────────────────────────────────────────
-log "Проверка конфигурации Django (--deploy)"
-compose_cmd exec -T web python manage.py check --deploy \
-  || warn "Django check --deploy выявил предупреждения"
+compose_cmd exec -T web python manage.py check --deploy 2>&1 \
+  | grep -E "^(System check|WARNINGS|ERROR)" || true
 
 # ─── 8. Статус ────────────────────────────────────────────────────────────────
-log "Состояние контейнеров"
+log "Деплой завершён — $(date '+%H:%M:%S')"
 compose_cmd ps
 
 log "Деплой завершён: $(date '+%Y-%m-%d %H:%M:%S')"

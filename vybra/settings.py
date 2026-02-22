@@ -215,12 +215,20 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+            'level': os.environ.get('DJANGO_LOG_LEVEL', 'WARNING'),
             'propagate': False,
         },
         'django.request': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'django.server': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'django.db.backends': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
         'celery': {'handlers': ['console'], 'level': _log_level, 'propagate': False},
+        'celery.app.trace': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'celery.worker.strategy': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
         'wishlist': {'handlers': ['console'], 'level': _log_level, 'propagate': False},
         'authentication': {'handlers': ['console'], 'level': _log_level, 'propagate': False},
+        # Шумные сторонние библиотеки
+        'urllib3': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'selenium': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'httpx': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
     },
 }
