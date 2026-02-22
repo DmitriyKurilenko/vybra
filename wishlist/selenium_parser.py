@@ -52,6 +52,22 @@ class SeleniumWildberriesParser:
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 
+        # Экономия памяти (критично для low-RAM сервера)
+        chrome_options.add_argument('--no-zygote')
+        chrome_options.add_argument('--single-process')
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-background-networking')
+        chrome_options.add_argument('--disable-default-apps')
+        chrome_options.add_argument('--disable-translate')
+        chrome_options.add_argument('--disable-sync')
+        chrome_options.add_argument('--disable-web-security')
+        chrome_options.add_argument('--disable-features=TranslateUI,BlinkGenPropertyTrees')
+        chrome_options.add_argument('--hide-scrollbars')
+        chrome_options.add_argument('--mute-audio')
+        chrome_options.add_argument('--metrics-recording-only')
+        chrome_options.add_argument('--safebrowsing-disable-auto-update')
+        chrome_options.add_argument('--js-flags=--max-old-space-size=128')
+
         # Обход детекции автоматизации
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)

@@ -86,7 +86,7 @@ services:
       timeout: 7s
       retries: 5
       start_period: 30s
-    mem_limit: 190m
+    mem_limit: 160m
     cpus: 0.35
     logging:
       driver: json-file
@@ -122,7 +122,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    mem_limit: 360m
+    mem_limit: 420m
+    shm_size: 128m
     cpus: 0.25
     logging:
       driver: json-file
