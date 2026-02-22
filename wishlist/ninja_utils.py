@@ -1,11 +1,15 @@
 """
 Django Ninja utilities - exceptions and authentication
 """
+import logging
+
 from ninja.security import HttpBearer
 from ninja.errors import HttpError
 from django.contrib.auth.models import User
 from django.conf import settings
 import jwt
+
+logger = logging.getLogger(__name__)
 
 
 # Custom Exceptions
@@ -63,14 +67,12 @@ class JWTAuth(HttpBearer):
             return user
 
         except jwt.ExpiredSignatureError:
-            # Токен истёк
             return None
         except jwt.InvalidTokenError:
-            # Невалидный токен
             return None
         except User.DoesNotExist:
-            # Пользователь не существует
             return None
         except Exception:
-            # Любая другая ошибка
+            # Непредвиденная ошибка (напр., отрыв Redis/DB) — логируем, не глотаем молча
+            logger.exception('Unexpected error in JWTAuth.authenticate')
             return None

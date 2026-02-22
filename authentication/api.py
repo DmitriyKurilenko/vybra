@@ -1,11 +1,15 @@
 """
 Authentication API endpoints - Django Ninja
 """
+import logging
+
 from ninja import Router
 from django.contrib.auth.models import User
-from datetime import datetime
+from django.utils import timezone
 import jwt
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 from wishlist.ninja_utils import JWTAuth, ValidationError, AuthenticationError
 from .schemas import (
@@ -23,17 +27,18 @@ auth = JWTAuth()
 
 def create_tokens(user):
     """Создать access и refresh токены"""
+    now = timezone.now()
     access_payload = {
         'user_id': user.id,
         'email': user.email,
-        'exp': datetime.utcnow() + settings.JWT_ACCESS_TOKEN_LIFETIME,
+        'exp': now + settings.JWT_ACCESS_TOKEN_LIFETIME,
         'type': 'access'
     }
 
     refresh_payload = {
         'user_id': user.id,
         'email': user.email,
-        'exp': datetime.utcnow() + settings.JWT_REFRESH_TOKEN_LIFETIME,
+        'exp': now + settings.JWT_REFRESH_TOKEN_LIFETIME,
         'type': 'refresh'
     }
 
@@ -70,12 +75,11 @@ def build_unique_username_from_email(email: str) -> str:
 @router.post("/register", response=TokenSchema)
 def register(request, payload: RegisterSchema):
     """Регистрация нового пользователя"""
-    # Проверяем, существует ли пользователь
     if User.objects.filter(email=payload.email).exists():
         raise ValidationError("User with this email already exists")
 
-    # Создаем пользователя
-    username = payload.username or payload.email.split('@')[0]
+    # Используем build_unique_username_from_email — гарантирует уникальность
+    username = build_unique_username_from_email(payload.username or payload.email)
     user = User.objects.create_user(
         username=username,
         email=payload.email,

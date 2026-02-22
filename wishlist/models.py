@@ -104,7 +104,8 @@ class Item(models.Model):
         return int(K * (actual - expected))
     
     def update_elo(self, opponent, won):
-        """Обновить ELO рейтинг после сравнения"""
+        """Обновить ELO рейтинг после сравнения.
+        Сохраняем только ELO-поля — не все поля объекта."""
         change = self.calculate_elo_change(opponent.elo_rating, won)
         self.elo_rating += change
         self.comparisons_count += 1
@@ -112,7 +113,7 @@ class Item(models.Model):
             self.wins += 1
         else:
             self.losses += 1
-        self.save()
+        self.save(update_fields=['elo_rating', 'comparisons_count', 'wins', 'losses'])
 
     @property
     def confidence(self):

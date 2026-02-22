@@ -1,18 +1,24 @@
 """
 Wishlist API endpoints - Django Ninja
 """
+import logging
+import uuid
+
 from ninja import Router
 from django.shortcuts import get_object_or_404
-from django.db import models
+from django.db import models, transaction
 from django.core.cache import cache
 from django.conf import settings
+from django.utils import timezone
 from typing import List
-from datetime import datetime, timedelta
-import random
+from datetime import timedelta
+
+logger = logging.getLogger(__name__)
 
 from .models import Item, Comparison, PriceHistory, Product, ImportRun
 from .serializers import serialize_item
 from .ninja_utils import JWTAuth, ValidationError, NotFoundError
+from django.contrib.auth.models import User
 from .schemas import (
     ItemSchema,
     ItemCreateSchema,
@@ -270,8 +276,8 @@ def get_item(request, item_id: int):
 @router.post("/items", response=ItemSchema, auth=auth)
 def create_item(request, payload: ItemCreateSchema):
     """Создать новый товар вручную"""
-    # Генерируем уникальный артикул для вручную созданного товара
-    article_code = f"MANUAL{random.randint(100000, 999999)}"
+    # UUID гарантирует уникальность без риска IntegrityError от коллизии randint
+    article_code = f"MANUAL-{uuid.uuid4().hex[:12].upper()}"
 
     # Создаем Product
     product = Product.objects.create(
@@ -309,7 +315,7 @@ def update_item(request, item_id: int, payload: ItemCreateSchema):
         product.save()
     else:
         # Если Product не существует, создаем его
-        article_code = f"MANUAL{random.randint(100000, 999999)}"
+        article_code = f"MANUAL-{uuid.uuid4().hex[:12].upper()}"
         product = Product.objects.create(
             article_code=article_code,
             name=payload.name,
@@ -417,7 +423,7 @@ def import_metrics(request, days: int = 7):
     from django.db.models import Avg, Sum
 
     period_days = max(1, min(days, 90))
-    since_dt = datetime.now() - timedelta(days=period_days)
+    since_dt = timezone.now() - timedelta(days=period_days)
 
     queryset = ImportRun.objects.filter(user=request.auth, started_at__gte=since_dt)
     runs_count = queryset.count()
@@ -455,7 +461,7 @@ def dashboard(request):
     """Получить статистику для дашборда"""
     from django.db.models import Count, Q
 
-    now = datetime.now()
+    now = timezone.now()
     week_ago = now - timedelta(days=7)
     day_ago = now - timedelta(days=1)
 
@@ -706,6 +712,9 @@ def update_profile(request, payload: ProfileUpdateSchema):
     if payload.last_name is not None:
         user.last_name = payload.last_name
     if payload.email is not None:
+        # Проверяем уникальность email среди других пользователей
+        if User.objects.filter(email=payload.email).exclude(pk=user.pk).exists():
+            raise ValidationError('Данный email уже занят другим пользователем')
         user.email = payload.email
     user.save()
 
@@ -727,17 +736,14 @@ def update_profile(request, payload: ProfileUpdateSchema):
 @router.post("/profile/reset-stats", response=MessageResponseSchema, auth=auth)
 def reset_statistics(request):
     """Обнулить статистику (сбросить ELO и сравнения)"""
-    # Сбрасываем статистику всех товаров
-    items = Item.objects.filter(user=request.auth)
-    items.update(
-        elo_rating=1500,
-        wins=0,
-        losses=0,
-        comparisons_count=0
-    )
-
-    # Удаляем все сравнения
-    Comparison.objects.filter(user=request.auth).delete()
+    with transaction.atomic():
+        Item.objects.filter(user=request.auth).update(
+            elo_rating=1500,
+            wins=0,
+            losses=0,
+            comparisons_count=0,
+        )
+        Comparison.objects.filter(user=request.auth).delete()
 
     return {
         "success": True,

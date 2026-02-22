@@ -2,6 +2,8 @@ services:
   db:
     restart: unless-stopped
     command: postgres -c shared_buffers=96MB -c work_mem=2MB -c maintenance_work_mem=32MB -c max_connections=30
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d vybra"]
       interval: 15s
@@ -36,11 +38,15 @@ services:
   web:
     restart: unless-stopped
     init: true
-    command: sh -c "python manage.py migrate --noinput && gunicorn vybra.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 60 --keep-alive 5 --max-requests 250 --max-requests-jitter 25 --access-logfile - --error-logfile -"
+    # migrate вынесен в команду web — для single-replica деплоя это безопасно.
+    # При горизонтальном масштабировании используйте отдельный init-контейнер.
+    command: sh -c "python manage.py migrate --noinput && gunicorn vybra.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 120 --keep-alive 5 --max-requests 250 --max-requests-jitter 25 --access-logfile - --error-logfile -"
     environment:
       - DEBUG=False
       - DB_CONN_MAX_AGE=45
-      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in environment}
+      - DB_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in .env}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       - SECURE_SSL_REDIRECT=True
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True
@@ -48,7 +54,9 @@ services:
       - SECURE_HSTS_INCLUDE_SUBDOMAINS=True
       - SECURE_HSTS_PRELOAD=True
       - PARSED_PRODUCT_CACHE_TTL=${PARSED_PRODUCT_CACHE_TTL:-172800}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in environment}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in .env}
+    volumes:
+      - media_data:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -75,9 +83,13 @@ services:
     environment:
       - DEBUG=False
       - DB_CONN_MAX_AGE=45
-      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in environment}
+      - DB_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in .env}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
       - PARSED_PRODUCT_CACHE_TTL=${PARSED_PRODUCT_CACHE_TTL:-172800}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in environment}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in .env}
+    volumes:
+      - media_data:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -90,3 +102,30 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  celery-beat:
+    restart: unless-stopped
+    init: true
+    command: celery -A vybra beat -l info -s /tmp/celerybeat-schedule
+    environment:
+      - DEBUG=False
+      - DB_CONN_MAX_AGE=45
+      - DB_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in .env}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 80m
+    cpus: 0.05
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  media_data:

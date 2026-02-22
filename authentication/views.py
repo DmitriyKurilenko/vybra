@@ -122,15 +122,25 @@ def google_login_callback(request):
 
     tokens = create_tokens(user)
 
+    # Токены передаются через JSON в data-атрибут — не через интерполяцию в JS (XSS-safe)
+    import json
+    tokens_json = json.dumps({
+        'access_token': tokens['access_token'],
+        'refresh_token': tokens['refresh_token'],
+    })
+
     return HttpResponse(
-        f"""
-<!doctype html>
-<html lang=\"ru\"><head><meta charset=\"utf-8\"><title>Авторизация...</title></head>
+        f"""<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Авторизация...</title></head>
 <body>
+<script type="application/json" id="auth-tokens">{tokens_json}</script>
 <script>
-localStorage.setItem('access_token', '{tokens['access_token']}');
-localStorage.setItem('refresh_token', '{tokens['refresh_token']}');
-window.location.replace('/dashboard/');
+(function(){{
+  var data = JSON.parse(document.getElementById('auth-tokens').textContent);
+  localStorage.setItem('access_token', data.access_token);
+  localStorage.setItem('refresh_token', data.refresh_token);
+  window.location.replace('/dashboard/');
+}})();
 </script>
 </body></html>
 """,

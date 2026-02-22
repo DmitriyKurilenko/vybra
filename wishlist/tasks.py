@@ -702,10 +702,13 @@ def import_favorites_from_wildberries(user_id):
     logger.info(f"Начинаю импорт избранного для пользователя {user_id}")
 
     try:
-        # Парсим избранное (headless=False для первого запуска, чтобы пользователь мог авторизоваться)
+        # В Docker/production Selenium всегда headless — нет дисплея.
+        # Для локального запуска с браузером установите SELENIUM_HEADLESS=False.
+        import os
+        headless_mode = os.environ.get('SELENIUM_HEADLESS', 'True').lower() != 'false'
         product_urls = parse_favorites_with_selenium(
             user_id=user_id,
-            headless=False,  # Открываем браузер для авторизации
+            headless=headless_mode,
             max_items=200
         )
 

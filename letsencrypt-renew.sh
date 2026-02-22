@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
+# Этот файл оставлен для обратной совместимости.
+# Используйте: ./scripts/cert-renew.sh
+exec "$(dirname "${BASH_SOURCE[0]}")/scripts/cert-renew.sh" "$@"
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
 
-ENV_FILE=${ENV_FILE:-".env.prod"}
+ENV_FILE=${ENV_FILE:-".env"}
 PRIMARY_COMPOSE_FILE=${PRIMARY_COMPOSE_FILE:-"docker-compose.yml"}
 SECONDARY_COMPOSE_FILE=${SECONDARY_COMPOSE_FILE:-"docker-compose.prod.yml"}
 
