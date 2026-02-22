@@ -1,7 +1,7 @@
 services:
   db:
     restart: unless-stopped
-    command: postgres -c shared_buffers=64MB -c work_mem=1MB -c maintenance_work_mem=16MB -c max_connections=20
+    command: postgres -c shared_buffers=32MB -c work_mem=1MB -c maintenance_work_mem=8MB -c max_connections=15
     environment:
       POSTGRES_DB: ${DB_NAME:-vybra}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -12,7 +12,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
-    mem_limit: 128m
+    mem_limit: 96m
     cpus: 0.40
     logging:
       driver: json-file
@@ -22,14 +22,14 @@ services:
 
   redis:
     restart: unless-stopped
-    command: redis-server --save "" --appendonly no --maxmemory 48mb --maxmemory-policy allkeys-lru
+    command: redis-server --save "" --appendonly no --maxmemory 32mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 10s
-    mem_limit: 56m
+    mem_limit: 40m
     cpus: 0.20
     logging:
       driver: json-file
@@ -86,7 +86,7 @@ services:
       timeout: 7s
       retries: 5
       start_period: 30s
-    mem_limit: 160m
+    mem_limit: 128m
     cpus: 0.35
     logging:
       driver: json-file
@@ -100,7 +100,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    command: celery -A vybra worker -l info --pool=solo --concurrency=1 --without-gossip --without-mingle --without-heartbeat --max-tasks-per-child=50 --max-memory-per-child=150000
+    command: celery -A vybra worker -l info --pool=solo --concurrency=1 --without-gossip --without-mingle --without-heartbeat --max-tasks-per-child=50 --max-memory-per-child=80000
     environment:
       - DEBUG=False
       - DB_HOST=db
@@ -125,7 +125,7 @@ services:
         condition: service_healthy
       selenium:
         condition: service_healthy
-    mem_limit: 160m
+    mem_limit: 96m
     cpus: 0.20
     logging:
       driver: json-file
@@ -136,11 +136,12 @@ services:
   selenium:
     image: selenium/standalone-chromium:4
     restart: unless-stopped
-    shm_size: 256m
+    shm_size: 128m
     environment:
       - SE_NODE_MAX_SESSIONS=1
       - SE_NODE_SESSION_TIMEOUT=120
       - SE_VNC_NO_PASSWORD=1
+      - SE_START_VNC=false
       - SE_OPTS=--log-level WARNING
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:4444/wd/hub/status"]
@@ -148,7 +149,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    mem_limit: 420m
+    mem_limit: 384m
     cpus: 0.40
     logging:
       driver: json-file
@@ -177,7 +178,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    mem_limit: 48m
+    mem_limit: 32m
     cpus: 0.05
     logging:
       driver: json-file

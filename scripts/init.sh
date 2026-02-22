@@ -85,13 +85,17 @@ apt-get update -qq
 # ─── Swap (если ОЗУ < 2GB — нужен для сборки образа с Chromium) ──────────────
 TOTAL_RAM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
 if [[ $TOTAL_RAM_MB -lt 2048 ]] && ! swapon --show | grep -q /swapfile; then
-  log "RAM ${TOTAL_RAM_MB}MB < 2GB — создаю swapfile 512MB..."
-  fallocate -l 512M /swapfile
+  SWAP_SIZE="1G"
+  log "RAM ${TOTAL_RAM_MB}MB < 2GB — создаю swapfile ${SWAP_SIZE} (Chromium требует запас)..."
+  fallocate -l "$SWAP_SIZE" /swapfile
   chmod 600 /swapfile
   mkswap /swapfile
   swapon /swapfile
   echo '/swapfile none swap sw 0 0' >> /etc/fstab
-  log "Swap 512MB активирован"
+  # Снижаем swappiness — swap только как страховка
+  sysctl vm.swappiness=10
+  echo 'vm.swappiness=10' >> /etc/sysctl.conf
+  log "Swap ${SWAP_SIZE} активирован (swappiness=10)"
 fi
 
 if ! command -v curl >/dev/null 2>&1; then

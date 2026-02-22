@@ -224,82 +224,77 @@ def extract_article_code(url, marketplace):
 )
 def update_prices():
     """
-    Обновить цены всех активных товаров с маркетплейсов
+    Обновить цены всех активных товаров.
 
-    Использует улучшенные парсеры с поддержкой API.
-    Обрабатывает ошибки и записывает в лог.
-    При ошибке автоматически повторяет попытку (до 3 раз).
+    Использует одну Selenium-сессию на весь batch для экономии ресурсов.
+    WB API закрыт x-pow challenge, поэтому парсим через Selenium напрямую.
     """
-    items = Item.objects.filter(
-        is_active=True,
-        product__isnull=False
-    ).select_related('product')
+    from .selenium_parser import SeleniumWildberriesParser
+
+    products = (
+        Product.objects.filter(
+            item__is_active=True,
+            item__isnull=False,
+            marketplace='wildberries',
+        )
+        .distinct()
+    )
+
+    total = products.count()
+    if total == 0:
+        return "No active products to update"
 
     updated_count = 0
     error_count = 0
 
-    for item in items:
-        try:
-            product = item.product
-            if not product or not product.url:
-                continue
+    with SeleniumWildberriesParser(headless=True) as parser:
+        for product in products:
+            try:
+                if not product.url:
+                    continue
 
-            # Получаем парсер для маркетплейса
-            parser = get_parser(product.marketplace)
-            if not parser:
-                logger.warning(f"No parser for marketplace {product.marketplace}")
-                continue
+                cache_key = _parsed_product_cache_key(
+                    'wildberries', article_code=product.article_code, url=product.url
+                )
+                result = cache.get(cache_key)
+                if not result:
+                    result = parser.parse(product.url, timeout=25)
+                    if result:
+                        cache.set(cache_key, result, timeout=PARSED_PRODUCT_CACHE_TTL)
 
-            # Парсим полные данные товара
-            result = parser.parse(product.url)
+                if result and result.get('price'):
+                    new_price = _to_decimal_or_none(result['price'])
+                    if new_price is None:
+                        error_count += 1
+                        continue
 
-            if result and result.get('price'):
-                new_price = result['price']
+                    changed_fields = ['last_price_check']
+                    product.last_price_check = timezone.now()
 
-                # Проверяем, изменилась ли цена
-                if new_price != product.price:
-                    # Сохраняем историю цен
-                    PriceHistory.objects.create(
-                        product=product,
-                        price=new_price
-                    )
+                    if new_price != product.price:
+                        PriceHistory.objects.create(product=product, price=new_price)
+                        product.price = new_price
+                        changed_fields.append('price')
+                        logger.info(f"Price updated: {product.name}: {product.price} -> {new_price}")
 
-                    # Обновляем Product
-                    old_price = product.price
-                    product.price = new_price
-
-                    # Обновляем дополнительную информацию если доступна
                     if result.get('name'):
                         product.name = result['name']
+                        changed_fields.append('name')
+                    if result.get('image_url') and not product.image_url:
+                        product.image_url = result['image_url']
+                        changed_fields.append('image_url')
 
-                    product.last_price_check = timezone.now()
-                    product.save()
+                    product.save(update_fields=changed_fields)
                     updated_count += 1
+                else:
+                    logger.warning(f"Could not fetch price for {product.name}")
+                    error_count += 1
 
-                    logger.info(
-                        f"Updated price for {product.name}: "
-                        f"{old_price} -> {new_price} ₽"
-                    )
-
-            else:
-                logger.warning(
-                    f"Could not fetch price for {product.name} ({product.url})"
-                )
+            except Exception as e:
+                logger.error(f"Error updating {product.name}: {e}", exc_info=True)
                 error_count += 1
 
-        except Exception as e:
-            logger.error(
-                f"Error updating price for {item.product.name if item.product else 'Unknown'}: {e}",
-                exc_info=True
-            )
-            error_count += 1
-
-    result_msg = (
-        f"Price update completed: "
-        f"{updated_count} updated, "
-        f"{error_count} errors, "
-        f"{items.count()} total"
-    )
+    result_msg = f"Price update: {updated_count} updated, {error_count} errors, {total} total"
     logger.info(result_msg)
     return result_msg
 
@@ -399,6 +394,7 @@ def add_item_from_url(user_id, url):
 
         # Пытаемся найти товар в глобальном каталоге
         product = None
+        result = None
         if article_code:
             product = Product.objects.filter(article_code=article_code).first()
             if product:
@@ -464,39 +460,31 @@ def add_item_from_url(user_id, url):
             )
             logger.info(f"Created new product in catalog: {product.name}")
 
-        # Обновляем недостающие/устаревшие данные из свежего парсинга для существующих товаров
-        if product and article_code and marketplace == 'wildberries':
-            if any([
-                not product.category,
-                product.rating is None,
-                product.reviews_count is None,
-                not product.image_url,
-            ]):
-                try:
-                    from .selenium_parser import parse_with_selenium
-                    refreshed = parse_with_selenium(url, headless=True)
-                    if refreshed:
-                        changed = False
-                        if refreshed.get('category') and not product.category:
-                            product.category = refreshed.get('category')
-                            changed = True
-                        refreshed_rating = _to_decimal_or_none(refreshed.get('rating'))
-                        if refreshed_rating is not None and product.rating is None:
-                            product.rating = refreshed_rating
-                            changed = True
-                        refreshed_reviews = _to_int_or_none(refreshed.get('reviews_count'))
-                        if refreshed_reviews is not None and product.reviews_count is None:
-                            product.reviews_count = refreshed_reviews
-                            changed = True
-                        if refreshed.get('image_url') and not product.image_url:
-                            product.image_url = refreshed.get('image_url')
-                            changed = True
-
-                        if changed:
-                            product.last_price_check = timezone.now()
-                            product.save(update_fields=['category', 'rating', 'reviews_count', 'image_url', 'last_price_check'])
-                except Exception as refresh_error:
-                    logger.debug(f"Не удалось обновить дополнительные данные товара {product.article_code}: {refresh_error}")
+        # Обогащаем существующий товар из уже полученного результата парсинга
+        # (без повторного Selenium-запроса)
+        if product and article_code and result:
+            changed_fields = []
+            if result.get('category') and not product.category:
+                product.category = result['category']
+                changed_fields.append('category')
+            enriched_rating = _to_decimal_or_none(result.get('rating'))
+            if enriched_rating is not None and product.rating is None:
+                product.rating = enriched_rating
+                changed_fields.append('rating')
+            enriched_reviews = _to_int_or_none(result.get('reviews_count'))
+            if enriched_reviews is not None and product.reviews_count is None:
+                product.reviews_count = enriched_reviews
+                changed_fields.append('reviews_count')
+            if result.get('image_url') and not product.image_url:
+                product.image_url = result['image_url']
+                changed_fields.append('image_url')
+            if result.get('brand') and not product.brand:
+                product.brand = result['brand']
+                changed_fields.append('brand')
+            if changed_fields:
+                product.last_price_check = timezone.now()
+                changed_fields.append('last_price_check')
+                product.save(update_fields=changed_fields)
 
         # Проверяем, не добавлен ли уже этот товар в wishlist пользователя
         existing_item = Item.objects.select_related('product').filter(user=user, product=product).first()
