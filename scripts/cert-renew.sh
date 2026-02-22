@@ -11,6 +11,8 @@
 #
 set -Eeuo pipefail
 
+[[ "$EUID" -eq 0 ]] || { echo "[FAIL] Запустите от root: sudo $0" >&2; exit 1; }
+
 # ─── Определяем корень проекта (скрипт лежит в scripts/) ──────────────────
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -18,8 +20,10 @@ cd "$ROOT_DIR"
 # ─── Загрузка .env ────────────────────────────────────────────────────
 SCRIPTS_ENV="$ROOT_DIR/.env"
 if [[ -f "$SCRIPTS_ENV" ]]; then
-  # shellcheck source=/dev/null
-  set -a; source "$SCRIPTS_ENV"; set +a
+  set -a
+  # shellcheck disable=SC1090
+  source "$SCRIPTS_ENV"
+  set +a
 fi
 
 CERTBOT_WEBROOT="${CERTBOT_WEBROOT:-/var/www/certbot}"
@@ -54,7 +58,7 @@ fi
 
 # ─── Обновление сертификата ───────────────────────────────────────────────────
 log "Обновление Let's Encrypt сертификата"
-sudo certbot renew \
+certbot renew \
   --webroot \
   -w "$CERTBOT_WEBROOT" \
   --quiet \

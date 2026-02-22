@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
+[[ "$EUID" -eq 0 ]] || { echo "[FAIL] Запустите от root: sudo $0" >&2; exit 1; }
 # ─── Корень проекта ───────────────────────────────────────────────────────────
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -8,8 +8,10 @@ cd "$ROOT_DIR"
 # ─── Загрузка .env ────────────────────────────────────────────────────
 SCRIPTS_ENV="$ROOT_DIR/.env"
 if [[ -f "$SCRIPTS_ENV" ]]; then
-  # shellcheck source=/dev/null
-  set -a; source "$SCRIPTS_ENV"; set +a
+  set -a
+  # shellcheck disable=SC1090
+  source "$SCRIPTS_ENV"
+  set +a
 fi
 
 # ─── Переменные с дефолтами из .env ──────────────────────────────────
@@ -60,7 +62,7 @@ fi
 SITE_PATH="$NGINX_CONF_PATH"
 ENABLED_PATH="$NGINX_ENABLED_PATH"
 
-sudo mkdir -p "$CERTBOT_WEBROOT"
+mkdir -p "$CERTBOT_WEBROOT"
 
 # ─── Установка nginx если нет ──────────────────────────────────────────────
 if ! command -v nginx >/dev/null 2>&1; then
@@ -75,13 +77,15 @@ mkdir -p "$(dirname "$SITE_PATH")" "$(dirname "$ENABLED_PATH")"
 
 
 if [[ "$MODE" == "pre" ]]; then
-  sudo tee "$SITE_PATH" >/dev/null <<EOF
+  tee "$SITE_PATH" >/dev/null <<EOF
 server {
     listen 80;
     server_name $SERVER_NAMES;
 
-    location /.well-known/acme-challenge/ {
-        root $CERTBOT_WEBROOT;
+    location ^~ /.well-known/acme-challenge/ {
+        alias $CERTBOT_WEBROOT/.well-known/acme-challenge/;
+        default_type "text/plain";
+        try_files \$uri =404;
     }
 
     location / {
@@ -95,13 +99,15 @@ server {
 }
 EOF
 else
-  sudo tee "$SITE_PATH" >/dev/null <<EOF
+  tee "$SITE_PATH" >/dev/null <<EOF
 server {
     listen 80;
     server_name $SERVER_NAMES;
 
-    location /.well-known/acme-challenge/ {
-        root $CERTBOT_WEBROOT;
+    location ^~ /.well-known/acme-challenge/ {
+        alias $CERTBOT_WEBROOT/.well-known/acme-challenge/;
+        default_type "text/plain";
+        try_files \$uri =404;
     }
 
     location / {
@@ -140,11 +146,11 @@ EOF
 fi
 
 if [[ -f /etc/nginx/sites-enabled/default ]]; then
-  sudo rm -f /etc/nginx/sites-enabled/default
+  rm -f /etc/nginx/sites-enabled/default
 fi
 
-sudo ln -sfn "$SITE_PATH" "$ENABLED_PATH"
-sudo nginx -t
+ln -sfn "$SITE_PATH" "$ENABLED_PATH"
+nginx -t
 if systemctl is-active --quiet nginx; then
   systemctl reload nginx
 else

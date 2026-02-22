@@ -17,8 +17,10 @@ cd "$ROOT_DIR"
 # ─── Загрузка .env ────────────────────────────────────────────────────
 SCRIPTS_ENV="$ROOT_DIR/.env"
 if [[ -f "$SCRIPTS_ENV" ]]; then
-  # shellcheck source=/dev/null
-  set -a; source "$SCRIPTS_ENV"; set +a
+  set -a
+  # shellcheck disable=SC1090
+  source "$SCRIPTS_ENV"
+  set +a
 fi
 
 # ─── Переменные (.env → defaults) ───────────────────────────────────────────

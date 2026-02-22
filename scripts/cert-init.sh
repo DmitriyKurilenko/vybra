@@ -16,6 +16,8 @@
 #
 set -Eeuo pipefail
 
+[[ "$EUID" -eq 0 ]] || { echo "[FAIL] Запустите от root: sudo $0" >&2; exit 1; }
+
 # ─── Корень проекта ───────────────────────────────────────────────────────────
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -23,8 +25,10 @@ cd "$ROOT_DIR"
 # ─── Загрузка .env ────────────────────────────────────────────────────
 SCRIPTS_ENV="$ROOT_DIR/.env"
 if [[ -f "$SCRIPTS_ENV" ]]; then
-  # shellcheck source=/dev/null
-  set -a; source "$SCRIPTS_ENV"; set +a
+  set -a
+  # shellcheck disable=SC1090
+  source "$SCRIPTS_ENV"
+  set +a
 fi
 
 # ─── Переменные с дефолтами из .env ──────────────────────────────────
@@ -100,7 +104,7 @@ if [[ -n "$WWW_DOMAIN" && "$WWW_DOMAIN" != "$DOMAIN" ]]; then
   CERTBOT_DOMAIN_ARGS+=("-d" "$WWW_DOMAIN")
 fi
 
-sudo mkdir -p "$CERTBOT_WEBROOT"
+mkdir -p "$CERTBOT_WEBROOT"
 
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║  Получение TLS-сертификата Let's Encrypt             ║"
@@ -110,7 +114,7 @@ echo "  E-mail   : $CERTBOT_EMAIL"
 echo "  Webroot  : $CERTBOT_WEBROOT"
 echo ""
 
-sudo certbot certonly \
+certbot certonly \
   --webroot \
   -w "$CERTBOT_WEBROOT" \
   --non-interactive \

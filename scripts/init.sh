@@ -36,8 +36,10 @@ cd "$ROOT_DIR"
 # ─── Загрузка .env ────────────────────────────────────────────────────────────
 ENV_FILE="$ROOT_DIR/.env"
 [[ -f "$ENV_FILE" ]] || die ".env не найден в $ROOT_DIR\nСоздайте его: cp .env.example .env && nano .env"
-# shellcheck source=/dev/null
-set -a; source "$ENV_FILE"; set +a
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
 
 # ─── Валидация обязательных переменных ────────────────────────────────────────
 errors=()
