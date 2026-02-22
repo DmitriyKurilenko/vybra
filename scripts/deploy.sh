@@ -108,12 +108,15 @@ if [[ "$SKIP_PULL" != "1" && -d .git ]]; then
 fi
 
 # ─── 2. Сборка frontend-ассетов ───────────────────────────────────────────────
-if command -v npm >/dev/null 2>&1 && [[ -f package.json ]]; then
+if [[ -f package.json ]]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    log "Node.js не найден — устанавливаю LTS..."
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+    apt-get install -y nodejs
+  fi
   log "Сборка frontend-ассетов"
   npm ci --silent
   npm run build:css
-else
-  warn "npm не найден или нет package.json — пропускаем сборку CSS"
 fi
 
 # ─── 3. Резервная копия БД ────────────────────────────────────────────────────
@@ -159,17 +162,12 @@ for i in $(seq 1 $MAX_RETRIES); do
   sleep 2
 done
 
-# ─── 7. Миграции ──────────────────────────────────────────────────────────────
-log "Применение миграций Django"
-compose_cmd exec -T web python manage.py migrate --noinput \
-  || die "Миграции завершились с ошибкой. Проверьте бэкап."
-
-# ─── 8. Проверка конфигурации Django ─────────────────────────────────────────
+# ─── 7. Проверка конфигурации Django ─────────────────────────────────────────
 log "Проверка конфигурации Django (--deploy)"
 compose_cmd exec -T web python manage.py check --deploy \
   || warn "Django check --deploy выявил предупреждения"
 
-# ─── 9. Статус ────────────────────────────────────────────────────────────────
+# ─── 8. Статус ────────────────────────────────────────────────────────────────
 log "Состояние контейнеров"
 compose_cmd ps
 

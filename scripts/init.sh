@@ -114,6 +114,12 @@ if ! command -v docker >/dev/null 2>&1; then
   systemctl enable --now docker
 fi
 
+if ! command -v npm >/dev/null 2>&1; then
+  log "Установка Node.js LTS..."
+  curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  apt-get install -y nodejs
+fi
+
 docker info >/dev/null 2>&1 || die "Docker daemon не запущен"
 log "Все зависимости установлены"
 

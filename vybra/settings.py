@@ -161,14 +161,18 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r'^https?://([a-zA-Z0-9-]+\.)*mmar\.dev$',
+CORS_ALLOWED_ORIGINS += [
+    f'https://{h}' for h in ALLOWED_HOSTS
+    if h not in ('localhost', '127.0.0.1', '*')
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'https://*.mmar.dev',
+]
+CSRF_TRUSTED_ORIGINS += [
+    f'https://{h}' for h in ALLOWED_HOSTS
+    if h not in ('localhost', '127.0.0.1', '*')
 ]
 
 # ─── Параметры приложения ────────────────────────────────────────────────────
