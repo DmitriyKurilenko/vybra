@@ -33,17 +33,7 @@ SKIP_PULL=${SKIP_PULL:-0}
 SKIP_BUILD=${SKIP_BUILD:-0}
 NO_BACKUP=${NO_BACKUP:-0}
 
-# ─── CLI-аргументы (переопределяют .env) ─────────────────────────────
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --skip-pull)  SKIP_PULL=1;   shift ;;
-    --skip-build) SKIP_BUILD=1;  shift ;;
-    --no-backup)  NO_BACKUP=1;   shift ;;
-    -h|--help)    _usage; exit 0 ;;
-    *) echo "Неизвестный аргумент: $1"; _usage; exit 1 ;;
-  esac
-done
-
+# ─── Справка ─────────────────────────────────────────────────────────────────
 _usage() {
   cat <<EOF
 Использование: $0 [--skip-pull] [--skip-build] [--no-backup]
@@ -62,6 +52,17 @@ _usage() {
   DB_CONTAINER_NAME     = $DB_CONTAINER_NAME
 EOF
 }
+
+# ─── CLI-аргументы (переопределяют .env) ─────────────────────────────
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-pull)  SKIP_PULL=1;   shift ;;
+    --skip-build) SKIP_BUILD=1;  shift ;;
+    --no-backup)  NO_BACKUP=1;   shift ;;
+    -h|--help)    _usage; exit 0 ;;
+    *) echo "Неизвестный аргумент: $1"; _usage; exit 1 ;;
+  esac
+done
 
 # ─── Compose helper ───────────────────────────────────────────────────────────
 COMPOSE_ARGS=(-f "$PRIMARY_COMPOSE_FILE")

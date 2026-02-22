@@ -147,7 +147,9 @@ mkdir -p \
 # Убираем дефолтный конфиг nginx если есть
 if [[ -f /etc/nginx/sites-enabled/default ]]; then
   rm -f /etc/nginx/sites-enabled/default
-  systemctl reload nginx
+  if systemctl is-active --quiet nginx; then
+    systemctl reload nginx
+  fi
 fi
 
 log "Директории созданы"
