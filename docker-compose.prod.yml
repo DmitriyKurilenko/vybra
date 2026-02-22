@@ -40,8 +40,6 @@ services:
   web:
     restart: unless-stopped
     init: true
-    ports:
-      - "127.0.0.1:8000:8000"
     # migrate вынесен в команду web — для single-replica деплоя это безопасно.
     # При горизонтальном масштабировании используйте отдельный init-контейнер.
     command: sh -c "python manage.py migrate --noinput && gunicorn vybra.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 120 --keep-alive 5 --max-requests 250 --max-requests-jitter 25 --access-logfile - --error-logfile -"
