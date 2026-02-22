@@ -41,18 +41,17 @@ class SeleniumWildberriesParser:
 
         logger.info("Инициализация Chrome WebDriver...")
 
+        remote_url = os.getenv('SELENIUM_REMOTE_URL')
+
         chrome_options = Options()
 
         if self.headless:
             chrome_options.add_argument('--headless=new')
 
-        # Обязательные флаги для Docker (без них Chrome не стартует в контейнере)
+        # Общие флаги (совместимы с Local и Remote)
         chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-setuid-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
-
-        # Экономия памяти
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-background-networking')
         chrome_options.add_argument('--disable-default-apps')
@@ -60,40 +59,40 @@ class SeleniumWildberriesParser:
         chrome_options.add_argument('--mute-audio')
         chrome_options.add_argument('--js-flags=--max-old-space-size=128')
         chrome_options.add_argument('--window-size=1280,720')
-
-        # Обход детекции автоматизации
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
         chrome_options.add_argument(
             'user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
             'AppleWebKit/537.36 (KHTML, like Gecko) '
             'Chrome/131.0.0.0 Safari/537.36'
         )
 
-        remote_url = os.getenv('SELENIUM_REMOTE_URL')
-        chrome_binary = os.getenv('CHROME_BIN')
-
-        if not chrome_binary:
-            chrome_binary = next(
-                (
-                    c for c in ('/usr/bin/chromium', '/usr/bin/chromium-browser')
-                    if os.path.exists(c)
-                ),
-                None,
-            )
-
-        if chrome_binary:
-            chrome_options.binary_location = chrome_binary
-
         try:
             if remote_url:
+                # Remote WebDriver — не устанавливаем binary_location
+                # и experimental options (они несовместимы с Remote)
                 logger.info(f"Использую удалённый Selenium: {remote_url}")
                 self.driver = webdriver.Remote(
                     command_executor=remote_url,
                     options=chrome_options,
                 )
             else:
+                # Локальный Chrome — добавляем experimental options
+                chrome_options.add_argument('--disable-setuid-sandbox')
+                chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+                chrome_options.add_experimental_option('useAutomationExtension', False)
+
+                chrome_binary = os.getenv('CHROME_BIN')
+                if not chrome_binary:
+                    chrome_binary = next(
+                        (
+                            c for c in ('/usr/bin/chromium', '/usr/bin/chromium-browser')
+                            if os.path.exists(c)
+                        ),
+                        None,
+                    )
+                if chrome_binary:
+                    chrome_options.binary_location = chrome_binary
+
                 chromedriver_path = (
                     os.getenv('CHROMEDRIVER_PATH')
                     or shutil.which('chromedriver')

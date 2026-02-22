@@ -154,7 +154,7 @@ fi
 
 # ─── ШАГ 3: TLS-сертификат ─────────────────────────────────────────────────────────────────
 step "3/5  TLS-сертификат Let's Encrypt"
-bash "$SCRIPT_DIR/cert-init.sh"
+bash "$SCRIPT_DIR/cert.sh" init
 
 # ─── ШАГ 4: Nginx HTTPS ─────────────────────────────────────────────────────────────────────
 step "4/5  Nginx (HTTPS)"
@@ -169,7 +169,7 @@ Description=Certbot Renewal
 
 [Service]
 Type=oneshot
-ExecStart=$ROOT_DIR/scripts/cert-renew.sh
+ExecStart=$ROOT_DIR/scripts/cert.sh renew
 WorkingDirectory=$ROOT_DIR
 EOF
 
