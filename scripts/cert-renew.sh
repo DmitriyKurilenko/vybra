@@ -58,11 +58,12 @@ fi
 
 # ─── Обновление сертификата ───────────────────────────────────────────────────
 log "Обновление Let's Encrypt сертификата"
+# certbot использует метод из /etc/letsencrypt/renewal/*.conf (standalone)
+# pre-hook/post-hook кратко останавливают nginx чтобы освободить порт 80
 certbot renew \
-  --webroot \
-  -w "$CERTBOT_WEBROOT" \
   --quiet \
-  --deploy-hook "systemctl reload nginx || true"
+  --pre-hook  "systemctl stop nginx  || true" \
+  --post-hook "systemctl start nginx || true"
 
 log "Certbot завершил работу (exit: $?)"
 
