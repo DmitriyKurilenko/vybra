@@ -88,7 +88,7 @@
 
     <!-- Items List -->
     <div class="flex flex-col gap-2">
-        <template x-for="item in itemsList" :key="item.id">
+        <template x-for="item in pagedItems()" :key="item.id">
             <div class="card bg-base-100 touch-manipulation">
                 <div class="flex flex-row items-center">
                     <!-- Изображение слева -->
@@ -134,6 +134,24 @@
                 </div>
             </div>
         </template>
+    </div>
+
+    <!-- Pagination -->
+    <div x-show="itemsList.length > pageSize && !loading" class="flex items-center justify-between gap-2 mt-4 flex-wrap">
+        <div class="flex items-center gap-2 text-sm">
+            <span class="opacity-70">Показывать:</span>
+            <select x-model.number="pageSize" @change="currentPage = 1" class="select select-bordered select-sm">
+                <option value="10">10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+        </div>
+        <div class="text-sm opacity-70" x-text="`${Math.min((currentPage - 1) * pageSize + 1, itemsList.length)}–${Math.min(currentPage * pageSize, itemsList.length)} из ${itemsList.length}`"></div>
+        <div class="flex gap-1">
+            <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1" class="btn btn-sm btn-ghost">‹</button>
+            <span class="btn btn-sm btn-ghost pointer-events-none" x-text="`${currentPage} / ${totalPages()}`"></span>
+            <button @click="currentPage = Math.min(totalPages(), currentPage + 1)" :disabled="currentPage >= totalPages()" class="btn btn-sm btn-ghost">›</button>
+        </div>
     </div>
 
     <!-- Empty State -->
@@ -327,6 +345,8 @@ function items() {
         },
         importTaskPollTimer: null,
         importRunPollTimer: null,
+        pageSize: 10,
+        currentPage: 1,
         formData: {
             name: '',
             url: '',
@@ -338,6 +358,7 @@ function items() {
         async init() {
             if (!requireAuth()) return;
             await this.syncRecentImportsForNotifications();
+            await this.restoreActiveImport();
             await this.loadItems();
         },
 
@@ -575,7 +596,7 @@ function items() {
                     this.stopBulkImportTracking();
                     this.importState.status = 'failed';
                     this.importState.message = data.message || 'Импорт завершился с ошибкой';
-                    this.pushNotification('Импорт WB', this.importState.message, 'error');
+                    // уведомление отправит pollImportRun, чтобы не дублировать
                     return;
                 }
 
@@ -607,6 +628,7 @@ function items() {
                         this.importState.enrichDone = true;
                         this.importState.message = result.message || 'Импорт завершён';
                         this.pushNotification('Импорт WB завершён', this.importState.message, 'success');
+                        this.markRunAsSeen(this.importState.runId);
                     }
                 }
             } catch (error) {
@@ -658,6 +680,7 @@ function items() {
                     this.importState.message = run.message || 'Импорт и обогащение завершены';
                     await this.loadItems();
                     this.pushNotification('Импорт WB завершён', this.importState.message, 'success');
+                    this.markRunAsSeen(run.id);
                     return;
                 }
 
@@ -666,10 +689,58 @@ function items() {
                     this.importState.status = 'failed';
                     this.importState.message = run.message || 'Импорт завершился с ошибкой';
                     this.pushNotification('Импорт WB', this.importState.message, 'error');
+                    this.markRunAsSeen(run.id);
                 }
             } catch (error) {
                 console.error('Error polling import run:', error);
             }
+        },
+
+        markRunAsSeen(runId) {
+            if (!runId) return;
+            const key = 'notificationCenter.importRuns.seen.v1';
+            try {
+                const seen = JSON.parse(localStorage.getItem(key) || '[]');
+                const next = [...new Set([...seen, runId])].slice(-200);
+                localStorage.setItem(key, JSON.stringify(next));
+            } catch (e) { /* ignore */ }
+        },
+
+        async restoreActiveImport() {
+            try {
+                const response = await authFetch('/api/wishlist/imports/recent?limit=5');
+                if (!response.ok) return;
+                const runs = await response.json();
+                if (!Array.isArray(runs) || runs.length === 0) return;
+                const active = runs.find(r => r.status === 'running' || r.status === 'enriching');
+                if (!active) return;
+                this.importState = {
+                    visible: true,
+                    status: active.status === 'enriching' ? 'enriching' : 'running',
+                    stage: active.status === 'enriching' ? 'enrich' : 'import',
+                    message: active.status === 'enriching'
+                        ? 'Этап 2 из 2: идёт обогащение товаров…'
+                        : 'Этап 1 из 2: идёт импорт ссылок…',
+                    statsText: `Добавлено: ${active.imported_count || 0} · Ошибки: ${active.failed_count || 0}`,
+                    taskId: null,
+                    runId: active.id,
+                    fastDone: active.status === 'enriching',
+                    enrichDone: false,
+                };
+                await this.pollImportRun();
+                this.importRunPollTimer = setInterval(() => this.pollImportRun(), 3000);
+            } catch (e) {
+                console.error('Error restoring import state:', e);
+            }
+        },
+
+        pagedItems() {
+            const start = (this.currentPage - 1) * this.pageSize;
+            return this.itemsList.slice(start, start + this.pageSize);
+        },
+
+        totalPages() {
+            return Math.max(1, Math.ceil(this.itemsList.length / this.pageSize));
         },
 
         pushNotification(title, message, type = 'info') {
