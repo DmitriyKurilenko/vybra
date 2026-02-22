@@ -84,8 +84,8 @@ apt-get update -qq
 # ─── Swap (если ОЗУ < 2GB — нужен для сборки образа с Chromium) ──────────────
 TOTAL_RAM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
 if [[ $TOTAL_RAM_MB -lt 2048 ]] && ! swapon --show | grep -q /swapfile; then
-  log "RAM ${TOTAL_RAM_MB}MB < 2GB — создаю swapfile 2GB..."
-  fallocate -l 2G /swapfile
+  log "RAM ${TOTAL_RAM_MB}MB < 1GB — создаю swapfile 2GB..."
+  fallocate -l 1G /swapfile
   chmod 600 /swapfile
   mkswap /swapfile
   swapon /swapfile
