@@ -46,40 +46,30 @@ class SeleniumWildberriesParser:
         if self.headless:
             chrome_options.add_argument('--headless=new')
 
-        # Оптимизация производительности
+        # Обязательные флаги для Docker (без них Chrome не стартует в контейнере)
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-setuid-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 
-        # Экономия памяти (критично для low-RAM сервера)
+        # Экономия памяти
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-background-networking')
         chrome_options.add_argument('--disable-default-apps')
-        chrome_options.add_argument('--disable-translate')
         chrome_options.add_argument('--disable-sync')
-        chrome_options.add_argument('--disable-features=TranslateUI,BlinkGenPropertyTrees')
-        chrome_options.add_argument('--hide-scrollbars')
         chrome_options.add_argument('--mute-audio')
-        chrome_options.add_argument('--metrics-recording-only')
-        chrome_options.add_argument('--safebrowsing-disable-auto-update')
         chrome_options.add_argument('--js-flags=--max-old-space-size=128')
-        chrome_options.add_argument('--window-size=800,600')
-        chrome_options.add_argument('--disable-crash-reporter')
+        chrome_options.add_argument('--window-size=1280,720')
 
         # Обход детекции автоматизации
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
         chrome_options.add_experimental_option('useAutomationExtension', False)
-
-        # User-Agent
         chrome_options.add_argument(
             'user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
             'AppleWebKit/537.36 (KHTML, like Gecko) '
             'Chrome/131.0.0.0 Safari/537.36'
         )
-
-        # Размер окна (убран — задан выше в блоке экономии памяти)
 
         remote_url = os.getenv('SELENIUM_REMOTE_URL')
         chrome_binary = os.getenv('CHROME_BIN')
@@ -87,9 +77,8 @@ class SeleniumWildberriesParser:
         if not chrome_binary:
             chrome_binary = next(
                 (
-                    candidate
-                    for candidate in ('/usr/bin/chromium', '/usr/bin/chromium-browser')
-                    if os.path.exists(candidate)
+                    c for c in ('/usr/bin/chromium', '/usr/bin/chromium-browser')
+                    if os.path.exists(c)
                 ),
                 None,
             )
@@ -97,7 +86,6 @@ class SeleniumWildberriesParser:
         if chrome_binary:
             chrome_options.binary_location = chrome_binary
 
-        # Используем предустановленный ChromeDriver из Docker image
         try:
             if remote_url:
                 logger.info(f"Использую удалённый Selenium: {remote_url}")
@@ -109,31 +97,19 @@ class SeleniumWildberriesParser:
                 chromedriver_path = (
                     os.getenv('CHROMEDRIVER_PATH')
                     or shutil.which('chromedriver')
-                    or '/usr/local/bin/chromedriver'
+                    or '/usr/bin/chromedriver'
                 )
-                log_path = '/tmp/chromedriver.log'
-                service = Service(
-                    chromedriver_path,
-                    log_output=log_path,
-                    service_args=['--verbose'],
-                )
-                logger.info(f"ChromeDriver: {chromedriver_path}, binary: {chrome_options.binary_location}, log: {log_path}")
+                logger.info(f"ChromeDriver: {chromedriver_path}, binary: {chrome_binary}")
+                service = Service(chromedriver_path)
                 self.driver = webdriver.Chrome(service=service, options=chrome_options)
 
-            # Скрываем признаки webdriver
             self.driver.execute_script(
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
-
-            logger.info("✅ Chrome WebDriver готов")
+            logger.info("Chrome WebDriver готов")
 
         except Exception as e:
             logger.error(f"Ошибка инициализации WebDriver: {e}")
-            try:
-                with open('/tmp/chromedriver.log', 'r') as f:
-                    logger.error(f"ChromeDriver log:\n{f.read()[-3000:]}")
-            except Exception:
-                pass
             raise
 
     def _close_driver(self):
