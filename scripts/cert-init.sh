@@ -80,11 +80,12 @@ if [[ ! "$CERTBOT_EMAIL" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
   exit 1
 fi
 
-command -v certbot >/dev/null 2>&1 || {
-  echo "ОШИБКА: certbot не установлен."
-  echo "Установить: sudo snap install --classic certbot && sudo ln -s /snap/bin/certbot /usr/bin/certbot"
-  exit 1
-}
+if ! command -v certbot >/dev/null 2>&1; then
+  echo "certbot не найден — устанавливаю через snap..."
+  sudo snap install --classic certbot
+  sudo ln -sf /snap/bin/certbot /usr/bin/certbot
+  echo "✓ certbot установлен"
+fi
 
 # ─── Аргументы certbot ───────────────────────────────────────────────────────
 CERTBOT_DOMAIN_ARGS=("-d" "$DOMAIN")

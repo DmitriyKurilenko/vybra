@@ -40,9 +40,9 @@ log() { echo "==> [$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 # ─── Проверки ─────────────────────────────────────────────────────────────────
 if ! command -v certbot >/dev/null 2>&1; then
-  echo "ОШИБКА: certbot не установлен." >&2
-  echo "Установить: sudo snap install --classic certbot" >&2
-  exit 1
+  log "certbot не найден — устанавливаю через snap..."
+  sudo snap install --classic certbot
+  sudo ln -sf /snap/bin/certbot /usr/bin/certbot
 fi
 
 # ─── Обновление сертификата ───────────────────────────────────────────────────
