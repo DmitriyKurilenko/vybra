@@ -319,271 +319,239 @@ class SeleniumWildberriesParser:
             logger.info(f"Открываю страницу: {url}")
             driver.get(url)
 
-            # Ждем загрузки страницы и прохождения антибот-проверки
-            time.sleep(3)
-
-            # Ждем появления основных элементов
+            # Одно ожидание: любой признак загрузки страницы (цена или заголовок)
             wait = WebDriverWait(driver, timeout)
-
-            result: Dict[str, Optional[Any]] = {
-                'name': None,
-                'brand': None,
-                'price': None,
-                'old_price': None,
-                'rating': None,
-                'reviews_count': None,
-                'category': None,
-                'image_url': None,
-            }
-
-            # Название товара
             try:
-                # Пробуем разные селекторы для названия
-                name_selectors = [
-                    'h3[class*="productTitle"]',
-                    '[class*="productTitle"]',
-                    'h1',
-                    '[data-link="text{:productCard^goodsName}"]',
-                    '.product-page__header',
-                    '.product-card__name',
-                ]
-
-                for selector in name_selectors:
-                    try:
-                        name_elem = wait.until(
-                            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                        )
-                        if name_elem and name_elem.text.strip():
-                            result['name'] = name_elem.text.strip()
-                            logger.info(f"✅ Название: {result['name'][:50]}...")
-                            break
-                    except:
-                        continue
-
+                wait.until(EC.presence_of_element_located((
+                    By.CSS_SELECTOR,
+                    ', '.join([
+                        'ins.price-block__final-price',
+                        '.price-block__final-price',
+                        'ins[class*="price"]',
+                        '[class*="price-block__final"]',
+                        'h1',
+                        '[class*="productTitle"]',
+                    ])
+                )))
             except TimeoutException:
-                logger.warning("Не удалось найти название товара")
+                logger.warning("Таймаут ожидания загрузки страницы")
 
-            # Цена
-            try:
-                price_selectors = [
-                    'ins.price-block__final-price',
-                    '.price-block__final-price',
-                    'ins[class*="price"]',
-                    '[class*="price-block__final"]',
-                ]
+            # Извлекаем всё из page_source за один проход (быстрее чем DOM-запросы)
+            source = driver.page_source
+            result = self._extract_all_from_source(source)
 
-                for selector in price_selectors:
-                    try:
-                        price_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        if price_elem and price_elem.text.strip():
-                            price_text = price_elem.text.strip()
-                            # Извлекаем числа из текста
-                            price_clean = re.sub(r'[^\d,.]', '', price_text)
-                            price_clean = price_clean.replace(',', '.')
-                            price_clean = price_clean.replace('\xa0', '')  # Неразрывный пробел
-
-                            if price_clean:
-                                try:
-                                    # Убираем все кроме цифр и точки
-                                    price_digits = re.sub(r'[^\d.]', '', price_clean)
-                                    result['price'] = Decimal(price_digits)
-                                    logger.info(f"✅ Цена: {result['price']} ₽")
-                                    break
-                                except:
-                                    continue
-                    except NoSuchElementException:
-                        continue
-
-            except Exception as e:
-                logger.warning(f"Ошибка при поиске цены: {e}")
-
-            # Старая цена
-            try:
-                old_price_selectors = [
-                    'del.price-block__old-price',
-                    '.price-block__old-price',
-                    'del[class*="price"]',
-                ]
-
-                for selector in old_price_selectors:
-                    try:
-                        old_price_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        if old_price_elem and old_price_elem.text.strip():
-                            old_price_text = old_price_elem.text.strip()
-                            old_price_clean = re.sub(r'[^\d.]', '', old_price_text)
-
-                            if old_price_clean:
-                                result['old_price'] = Decimal(old_price_clean)
-                                logger.info(f"✅ Старая цена: {result['old_price']} ₽")
-                                break
-                    except:
-                        continue
-
-            except Exception as e:
-                logger.debug(f"Старая цена не найдена: {e}")
-
-            # Бренд
-            try:
-                brand_selectors = [
-                    '[data-link="text{:productCard^brandName}"]',
-                    '.product-page__header-brand',
-                    '[class*="brand"]',
-                ]
-
-                for selector in brand_selectors:
-                    try:
-                        brand_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        if brand_elem and brand_elem.text.strip():
-                            result['brand'] = brand_elem.text.strip()
-                            logger.info(f"✅ Бренд: {result['brand']}")
-                            break
-                    except:
-                        continue
-
-            except Exception as e:
-                logger.debug(f"Бренд не найден: {e}")
-
-            # Рейтинг
-            try:
-                rating_selectors = [
-                    '[class*="rating"]',
-                    '.product-review__rating',
-                ]
-
-                for selector in rating_selectors:
-                    try:
-                        rating_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        if rating_elem:
-                            rating_text = rating_elem.text.strip()
-                            # Извлекаем число
-                            rating_match = re.search(r'(\d+\.?\d*)', rating_text)
-                            if rating_match:
-                                result['rating'] = float(rating_match.group(1))
-                                logger.info(f"✅ Рейтинг: {result['rating']}")
-                                break
-                    except:
-                        continue
-
-            except Exception as e:
-                logger.debug(f"Рейтинг не найден: {e}")
-
-            # Количество отзывов
-            try:
-                review_selectors = [
-                    '[class*="feedbacks-count"]',
-                    '[class*="product-review"]',
-                    '[class*="review"]',
-                ]
-
-                for selector in review_selectors:
-                    try:
-                        review_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        if review_elem:
-                            review_text = review_elem.text.strip()
-                            review_match = re.search(r'(\d[\d\s]*)', review_text)
-                            if review_match:
-                                digits = re.sub(r'\D', '', review_match.group(1))
-                                if digits:
-                                    result['reviews_count'] = int(digits)
-                                    logger.info(f"✅ Отзывов: {result['reviews_count']}")
-                                    break
-                    except:
-                        continue
-            except Exception as e:
-                logger.debug(f"Количество отзывов не найдено: {e}")
-
-            # Категория
-            try:
-                category_selectors = [
-                    '.breadcrumbs__item:last-child',
-                    '.breadcrumbs li:last-child',
-                    '[class*="breadcrumbs"] a:last-child',
-                ]
-
-                for selector in category_selectors:
-                    try:
-                        category_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        if category_elem:
-                            category_text = category_elem.text.strip()
-                            if category_text:
-                                result['category'] = category_text
-                                logger.info(f"✅ Категория: {result['category']}")
-                                break
-                    except:
-                        continue
-            except Exception as e:
-                logger.debug(f"Категория не найдена: {e}")
-
-            # Изображение
-            try:
-                img_selectors = [
+            # Картинку берём из DOM — srcset/src не всегда есть в HTML
+            if not result.get('image_url'):
+                for selector in [
                     '.product-page__img-wrap img',
                     '.img-plug img',
                     '[class*="product"] img[src*="basket"]',
-                ]
-
-                for selector in img_selectors:
+                    'img[src*="wbbasket"]',
+                ]:
                     try:
                         img_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        if img_elem:
-                            img_src = (
-                                self._extract_largest_src_from_srcset(img_elem.get_attribute('srcset'))
-                                or img_elem.get_attribute('src')
-                                or img_elem.get_attribute('data-src')
-                            )
-                            if img_src and 'basket' in img_src:
-                                result['image_url'] = self._normalize_image_url(img_src)
-                                logger.info(f"✅ Изображение найдено")
-                                break
-                    except:
+                        img_src = (
+                            self._extract_largest_src_from_srcset(img_elem.get_attribute('srcset'))
+                            or img_elem.get_attribute('src')
+                            or img_elem.get_attribute('data-src')
+                        )
+                        if img_src and 'basket' in img_src:
+                            result['image_url'] = self._normalize_image_url(img_src)
+                            break
+                    except (NoSuchElementException, Exception):
                         continue
 
-            except Exception as e:
-                logger.debug(f"Изображение не найдено: {e}")
+            # Fallback картинка по артикулу
+            if not result.get('image_url'):
+                article_match = re.search(r'/catalog/(\d+)/', url)
+                if article_match:
+                    article = article_match.group(1)
+                    vol = article[:4]
+                    part = article[:6]
+                    result['image_url'] = f"https://basket-01.wbbasket.ru/vol{vol}/part{part}/{article}/images/big/1.webp"
 
-            # Дополняем из структурированных данных JSON-LD
-            structured_data = self._extract_structured_data()
-            if not result.get('category') and structured_data.get('category'):
-                result['category'] = structured_data['category']
-            if result.get('rating') is None and structured_data.get('rating') is not None:
-                result['rating'] = structured_data['rating']
-            if result.get('reviews_count') is None and structured_data.get('reviews_count') is not None:
-                result['reviews_count'] = structured_data['reviews_count']
-
-            # Дополняем из сырого page source (fallback для новых layout WB)
-            source_fallback = self._extract_fields_from_page_source(driver.page_source)
-            if not result.get('category') and source_fallback.get('category'):
-                result['category'] = source_fallback['category']
-                logger.info(f"✅ Категория (fallback): {result['category']}")
-            if result.get('rating') is None and source_fallback.get('rating') is not None:
-                result['rating'] = source_fallback['rating']
-                logger.info(f"✅ Рейтинг (fallback): {result['rating']}")
-            if result.get('reviews_count') is None and source_fallback.get('reviews_count') is not None:
-                result['reviews_count'] = source_fallback['reviews_count']
-                logger.info(f"✅ Отзывов (fallback): {result['reviews_count']}")
-
-            # Нормализуем формат рейтинга
             if result.get('rating') is not None:
                 try:
                     result['rating'] = float(str(result['rating']).replace(',', '.'))
                 except Exception:
                     result['rating'] = None
 
-            # Проверяем что хоть что-то получили
             if result['name'] or result['price']:
-                logger.info("✅ Парсинг успешен (Selenium)")
+                logger.info(f"Парсинг успешен: {result.get('name', '?')[:40]}, {result.get('price')} р.")
                 return result
             else:
-                logger.warning("⚠️ Не удалось извлечь данные товара")
+                logger.warning("Не удалось извлечь данные товара")
                 return None
 
         except Exception as e:
             logger.error(f"Ошибка при парсинге через Selenium: {e}", exc_info=True)
             return None
 
-        finally:
-            # Не закрываем драйвер, чтобы переиспользовать для следующих товаров
-            pass
+    def _extract_all_from_source(self, source):
+        """
+        Извлекает все данные товара из HTML-source за один проход.
+        Быстрее чем последовательные DOM-запросы через WebDriver.
+        """
+        result: Dict[str, Optional[Any]] = {
+            'name': None,
+            'brand': None,
+            'price': None,
+            'old_price': None,
+            'rating': None,
+            'reviews_count': None,
+            'category': None,
+            'image_url': None,
+        }
+
+        if not source:
+            return result
+
+        # JSON-LD (самый надёжный источник)
+        for ld_match in re.finditer(
+            r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
+            source, re.DOTALL | re.IGNORECASE,
+        ):
+            try:
+                payload = json.loads(ld_match.group(1))
+                entries = payload if isinstance(payload, list) else [payload]
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    entry_type = str(entry.get('@type', '')).lower()
+
+                    if 'product' in entry_type:
+                        if not result['name'] and entry.get('name'):
+                            result['name'] = str(entry['name']).strip()
+                        if not result['brand']:
+                            brand = entry.get('brand')
+                            if isinstance(brand, dict):
+                                brand = brand.get('name')
+                            if brand:
+                                result['brand'] = str(brand).strip()
+                        if not result['category'] and entry.get('category'):
+                            result['category'] = str(entry['category']).strip()
+
+                        offers = entry.get('offers')
+                        if isinstance(offers, dict) and not result['price']:
+                            price_val = offers.get('price')
+                            if price_val is not None:
+                                try:
+                                    result['price'] = Decimal(str(price_val))
+                                except Exception:
+                                    pass
+
+                        agg = entry.get('aggregateRating')
+                        if isinstance(agg, dict):
+                            if result['rating'] is None and agg.get('ratingValue') is not None:
+                                try:
+                                    result['rating'] = float(str(agg['ratingValue']).replace(',', '.'))
+                                except Exception:
+                                    pass
+                            if result['reviews_count'] is None and agg.get('reviewCount') is not None:
+                                try:
+                                    result['reviews_count'] = int(float(str(agg['reviewCount'])))
+                                except Exception:
+                                    pass
+
+                    if 'breadcrumblist' in entry_type and not result['category']:
+                        items = entry.get('itemListElement', [])
+                        names = [
+                            str(b['name']).strip()
+                            for b in items
+                            if isinstance(b, dict) and b.get('name')
+                        ]
+                        if len(names) >= 2:
+                            result['category'] = names[-2]
+                        elif names:
+                            result['category'] = names[-1]
+            except (json.JSONDecodeError, Exception):
+                continue
+
+        # Regex fallback из встроенных JSON-фрагментов WB
+        if not result['name']:
+            m = re.search(
+                r'"(?:imt_name|goodsName|name)"\s*:\s*"([^"\\]{2,300})"',
+                source, re.IGNORECASE,
+            )
+            if m:
+                result['name'] = m.group(1).strip()
+
+        if not result['brand']:
+            m = re.search(
+                r'"(?:brandName|brand_name|brand)"\s*:\s*"([^"\\]{1,100})"',
+                source, re.IGNORECASE,
+            )
+            if m:
+                result['brand'] = m.group(1).strip()
+
+        if not result['price']:
+            # salePriceU в копейках (WB API формат в page data)
+            m = re.search(r'"salePriceU"\s*:\s*(\d+)', source)
+            if m:
+                try:
+                    result['price'] = Decimal(m.group(1)) / 100
+                except Exception:
+                    pass
+
+        if not result['price']:
+            # Цена из HTML-текста
+            m = re.search(
+                r'price-block__final-price[^>]*>\s*([^<]+)',
+                source, re.IGNORECASE,
+            )
+            if m:
+                digits = re.sub(r'[^\d]', '', m.group(1))
+                if digits:
+                    try:
+                        result['price'] = Decimal(digits)
+                    except Exception:
+                        pass
+
+        if not result['old_price']:
+            m = re.search(r'"priceU"\s*:\s*(\d+)', source)
+            if m:
+                try:
+                    result['old_price'] = Decimal(m.group(1)) / 100
+                except Exception:
+                    pass
+
+        if not result['category']:
+            m = re.search(
+                r'"(?:subjectName|subject|subj_name|category)"\s*:\s*"([^"\\]{2,200})"',
+                source, re.IGNORECASE,
+            )
+            if m:
+                result['category'] = m.group(1).strip()
+
+        if result['rating'] is None:
+            m = re.search(
+                r'"(?:reviewRating|rating|ratingValue)"\s*:\s*([0-9]+(?:[.,][0-9]+)?)',
+                source, re.IGNORECASE,
+            )
+            if m:
+                try:
+                    result['rating'] = float(m.group(1).replace(',', '.'))
+                except Exception:
+                    pass
+
+        if result['reviews_count'] is None:
+            m = re.search(
+                r'"(?:feedbacks|feedbacksCount|reviewCount|feedbackCount)"\s*:\s*(\d{1,9})',
+                source, re.IGNORECASE,
+            )
+            if m:
+                try:
+                    result['reviews_count'] = int(m.group(1))
+                except Exception:
+                    pass
+
+        # Картинка из source
+        if not result['image_url']:
+            m = re.search(r'(https?://basket-\d+\.wbbasket\.ru/[^"\'<>\s]+\.(?:webp|jpg|png))', source)
+            if m:
+                result['image_url'] = self._normalize_image_url(m.group(1))
+
+        return result
 
     def save_cookies(self, filepath):
         """Сохранить cookies в файл для повторного использования"""
