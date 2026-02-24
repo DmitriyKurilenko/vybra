@@ -24,6 +24,8 @@
         body {
             background: #fff;
             color: var(--text-dark);
+            min-height: 100vh;
+            overflow-x: hidden;
         }
 
         .btn-primary {
@@ -62,6 +64,44 @@
             flex-shrink: 0;
         }
 
+        .auth-shell {
+            min-height: calc(100vh - 64px);
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 28rem;
+        }
+
+        .auth-card .input,
+        .auth-card .btn {
+            min-height: 44px;
+        }
+
+        @media (max-width: 639px) {
+            .app-nav .navbar-start .btn {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+                gap: 0.5rem;
+            }
+
+            .auth-shell {
+                align-items: flex-start;
+                padding-top: 0.75rem;
+            }
+
+            .auth-card .card-body {
+                padding: 1rem;
+            }
+
+            .auth-card .card-title {
+                font-size: 1.5rem;
+                line-height: 1.2;
+            }
+        }
+
     </style>
 
     <!-- AlpineJS -->
@@ -89,8 +129,8 @@
     </div>
 
     <!-- Login Form -->
-    <div class="min-h-screen flex items-center justify-center p-4 sm:p-6" x-data="loginForm()">
-        <div class="card w-full max-w-md bg-base-100 shadow-xl">
+    <div class="auth-shell flex items-center justify-center p-4 sm:p-6" x-data="loginForm()">
+        <div class="auth-card card bg-base-100 shadow-xl">
             <div class="card-body p-5 sm:p-6">
                 <h2 class="card-title text-3xl mb-5 sm:mb-6 justify-center">Вход в Vybra</h2>
 

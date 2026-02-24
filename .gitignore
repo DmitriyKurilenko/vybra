@@ -72,3 +72,5 @@ yarn-error.log
 #Claude
 .claude/
 .env
+
+Задача.md

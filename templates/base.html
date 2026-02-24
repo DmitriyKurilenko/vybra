@@ -153,6 +153,26 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .card, .stat {
+            min-width: 0;
+        }
+
+        .badge {
+            max-width: 100%;
+        }
+
+        .page-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin: 0;
+            min-width: 0;
         }
 
         .footer-logo {
@@ -198,8 +218,73 @@
 
         @media (max-width: 639px) {
             .mobile-bottom-nav {
-                display: flex !important;
+                align-items: stretch;
             }
+
+            .mobile-bottom-nav > a {
+                display: flex;
+                flex: 1 1 0%;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                gap: 4px;
+                min-height: 64px;
+                padding: 6px 4px 8px;
+                text-align: center;
+                line-height: 1;
+            }
+
+            .mobile-bottom-nav > a svg {
+                width: 24px;
+                height: 24px;
+                margin: 0;
+                flex-shrink: 0;
+            }
+
+            .mobile-bottom-nav > a .btm-nav-label {
+                display: block;
+                margin: 0;
+                line-height: 1.1;
+                white-space: nowrap;
+            }
+
+            .mobile-bottom-nav > a.active,
+            .mobile-bottom-nav > a[class*="active"] {
+                transform: none;
+            }
+
+            .app-nav .navbar-start .btn {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+                gap: 0.5rem;
+            }
+
+            .app-nav .navbar-start .font-bold {
+                font-size: 1rem;
+            }
+
+            .app-logo-icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 9px;
+            }
+
+            .page-title {
+                font-size: 1.375rem;
+                line-height: 1.15;
+            }
+
+            .page-shell {
+                gap: 14px;
+            }
+
+            main.container {
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+                padding-top: 0.875rem;
+            }
+
+            .mobile-bottom-nav { display: flex !important; }
         }
     </style>
 </head>
@@ -286,7 +371,7 @@
     </div>
 
     <!-- Main Content -->
-    <main class="container mx-auto px-3 py-4 sm:px-4 sm:py-6 max-w-7xl pb-20 sm:pb-6">
+    <main class="container mx-auto px-3 py-4 sm:px-4 sm:py-6 max-w-7xl pb-24 sm:pb-6">
         {% block content %}
         {% endblock %}
     </main>

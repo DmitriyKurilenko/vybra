@@ -5,17 +5,17 @@
 {% block content %}
 <div x-data="items()" x-init="init()" class="page-shell">
     <!-- Header with Add Button -->
-    <div class="flex justify-between items-center mb-6 md:mb-8 gap-2">
-        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Мои товары</h1>
-        <div class="flex gap-2">
-            <button @click="openImportFavoritesModal()" class="btn btn-secondary btn-sm sm:btn-md min-h-[44px]">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 md:mb-8 gap-3">
+        <h1 class="page-title text-2xl sm:text-3xl">Мои товары</h1>
+        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <button @click="openImportFavoritesModal()" class="btn btn-secondary btn-sm sm:btn-md min-h-[44px] w-full sm:w-auto justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 <span class="hidden sm:inline ml-2">Импорт избранного WB</span>
                 <span class="sm:hidden">Импорт WB</span>
             </button>
-            <button @click="openAddModal()" class="btn btn-primary btn-sm sm:btn-md min-h-[44px]">
+            <button @click="openAddModal()" class="btn btn-primary btn-sm sm:btn-md min-h-[44px] w-full sm:w-auto justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
@@ -90,7 +90,7 @@
     <div class="flex flex-col gap-2">
         <template x-for="item in pagedItems()" :key="item.id">
             <div class="card bg-base-100 touch-manipulation">
-                <div class="flex flex-row items-center">
+                <div class="flex flex-row items-stretch sm:items-center">
                     <!-- Изображение слева -->
                     <figure x-data="{ imgFailed: false }" class="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 bg-base-200 overflow-hidden">
                         <template x-if="hasImage(item) && !imgFailed">
@@ -112,7 +112,7 @@
 
                     <!-- Информация справа -->
                     <div class="flex-1 p-2 sm:p-3 min-w-0">
-                        <div class="flex items-start justify-between gap-2 mb-1">
+                        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2 mb-1">
                             <div class="flex-1 min-w-0">
                                 <h2 class="text-sm font-semibold line-clamp-1 mb-0.5" x-text="item.name"></h2>
                                 <div class="flex gap-1.5 flex-wrap items-center">
@@ -120,14 +120,14 @@
                                     <div class="badge badge-accent badge-xs" x-text="'Категория: ' + (item.category || '—')"></div>
                                 </div>
                             </div>
-                            <p class="text-base sm:text-lg font-bold text-primary flex-shrink-0" x-text="item.price ? item.price + ' ₽' : '—'"></p>
+                            <p class="text-base sm:text-lg font-bold text-primary flex-shrink-0 self-start sm:self-auto" x-text="item.price ? item.price + ' ₽' : '—'"></p>
                         </div>
 
                         <div class="flex items-center gap-2 flex-wrap">
-                            <div class="flex gap-1.5 ml-auto">
-                                <a :href="item.url" target="_blank" class="btn btn-xs btn-ghost h-7 min-h-7" x-show="item.url">Ссылка</a>
-                                <button @click="editItem(item)" class="btn btn-xs btn-outline h-7 min-h-7">Изменить</button>
-                                <button @click="deleteItem(item.id)" class="btn btn-xs btn-error h-7 min-h-7">Удалить</button>
+                            <div class="flex gap-1.5 flex-wrap w-full sm:w-auto sm:ml-auto">
+                                <a :href="item.url" target="_blank" class="btn btn-xs btn-ghost h-8 min-h-8 flex-1 sm:flex-none" x-show="item.url">Ссылка</a>
+                                <button @click="editItem(item)" class="btn btn-xs btn-outline h-8 min-h-8 flex-1 sm:flex-none">Изменить</button>
+                                <button @click="deleteItem(item.id)" class="btn btn-xs btn-error h-8 min-h-8 flex-1 sm:flex-none">Удалить</button>
                             </div>
                         </div>
                     </div>
@@ -147,10 +147,10 @@
             </select>
         </div>
         <div class="text-sm opacity-70" x-text="`${Math.min((currentPage - 1) * pageSize + 1, itemsList.length)}–${Math.min(currentPage * pageSize, itemsList.length)} из ${itemsList.length}`"></div>
-        <div class="flex gap-1">
-            <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1" class="btn btn-sm btn-ghost">‹</button>
-            <span class="btn btn-sm btn-ghost pointer-events-none" x-text="`${currentPage} / ${totalPages()}`"></span>
-            <button @click="currentPage = Math.min(totalPages(), currentPage + 1)" :disabled="currentPage >= totalPages()" class="btn btn-sm btn-ghost">›</button>
+        <div class="flex gap-1 w-full sm:w-auto justify-end">
+            <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1" class="btn btn-sm btn-ghost min-h-[40px]">‹</button>
+            <span class="btn btn-sm btn-ghost pointer-events-none min-h-[40px]" x-text="`${currentPage} / ${totalPages()}`"></span>
+            <button @click="currentPage = Math.min(totalPages(), currentPage + 1)" :disabled="currentPage >= totalPages()" class="btn btn-sm btn-ghost min-h-[40px]">›</button>
         </div>
     </div>
 

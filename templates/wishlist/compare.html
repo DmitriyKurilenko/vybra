@@ -5,10 +5,10 @@
 {% block content %}
 <div x-data="compare()" x-init="init()" class="page-shell space-y-3 sm:space-y-4">
     <!-- Mobile Split-Screen View -->
-    <div x-show="!loading && item1 && item2" class="md:hidden flex flex-col gap-1">
+    <div x-show="!loading && item1 && item2" class="md:hidden flex flex-col gap-2">
         <!-- Item 1 - Top Half -->
         <div @click="submitComparison(item1)"
-               class="card bg-base-100 cursor-pointer active:bg-base-200 transition-colors touch-manipulation flex flex-row items-center p-2 h-[30vh]"
+               class="card bg-base-100 cursor-pointer active:bg-base-200 transition-colors touch-manipulation flex flex-row items-center p-2 min-h-[170px] h-[calc(50dvh-132px)] max-h-[280px]"
              :class="{'opacity-50': loading}">
             <!-- Image Left -->
             <div x-data="{ imgFailed: false }" class="relative w-1/2 h-full pr-1 bg-base-200 overflow-hidden">
@@ -31,16 +31,16 @@
             <div class="w-1/2 h-full flex flex-col justify-center items-start pl-1">
                 <h2 class="text-sm font-semibold leading-snug line-clamp-2 mb-2" x-text="item1 ? item1.name : ''"></h2>
                 <div class="flex gap-1 flex-wrap mb-1">
-                    <div class="badge badge-primary badge-xs" x-text="'Степень готовности: ' + (item1 ? (item1.confidence || 0) : 0) + '%' "></div>
-                    <div class="badge badge-accent badge-xs" x-text="'Категория: ' + (item1 ? (item1.category || '—') : '—')"></div>
+                    <div class="badge badge-primary badge-xs" x-text="'Готовность: ' + (item1 ? (item1.confidence || 0) : 0) + '%' "></div>
+                    <div class="badge badge-accent badge-xs max-w-full truncate" x-text="'Кат.: ' + (item1 ? (item1.category || '—') : '—')"></div>
                 </div>
-                <p class="text-lg font-bold text-primary" x-text="item1 && item1.price ? item1.price + ' ₽' : '-'"></p>
+                <p class="text-base sm:text-lg font-bold text-primary break-all" x-text="item1 && item1.price ? item1.price + ' ₽' : '-'"></p>
             </div>
         </div>
 
         <!-- Item 2 - Bottom Half -->
         <div @click="submitComparison(item2)"
-               class="card bg-base-100 cursor-pointer active:bg-base-200 transition-colors touch-manipulation flex flex-row items-center p-2 h-[30vh]"
+               class="card bg-base-100 cursor-pointer active:bg-base-200 transition-colors touch-manipulation flex flex-row items-center p-2 min-h-[170px] h-[calc(50dvh-132px)] max-h-[280px]"
              :class="{'opacity-50': loading}">
             <!-- Image Left -->
             <div x-data="{ imgFailed: false }" class="relative w-1/2 h-full pr-1 bg-base-200 overflow-hidden">
@@ -63,10 +63,10 @@
             <div class="w-1/2 h-full flex flex-col justify-center items-start pl-1">
                 <h2 class="text-sm font-semibold leading-snug line-clamp-2 mb-2" x-text="item2 ? item2.name : ''"></h2>
                 <div class="flex gap-1 flex-wrap mb-1">
-                    <div class="badge badge-primary badge-xs" x-text="'Степень готовности: ' + (item2 ? (item2.confidence || 0) : 0) + '%' "></div>
-                    <div class="badge badge-accent badge-xs" x-text="'Категория: ' + (item2 ? (item2.category || '—') : '—')"></div>
+                    <div class="badge badge-primary badge-xs" x-text="'Готовность: ' + (item2 ? (item2.confidence || 0) : 0) + '%' "></div>
+                    <div class="badge badge-accent badge-xs max-w-full truncate" x-text="'Кат.: ' + (item2 ? (item2.category || '—') : '—')"></div>
                 </div>
-                <p class="text-lg font-bold text-primary" x-text="item2 && item2.price ? item2.price + ' ₽' : '-'"></p>
+                <p class="text-base sm:text-lg font-bold text-primary break-all" x-text="item2 && item2.price ? item2.price + ' ₽' : '-'"></p>
             </div>
         </div>
     </div>
@@ -150,12 +150,12 @@
     </div>
 
     <!-- No Items State -->
-    <div x-show="!loading && !item1" class="alert alert-warning text-sm sm:text-base">
+    <div x-show="!loading && !item1" class="alert alert-warning text-sm sm:text-base flex-col sm:flex-row items-start sm:items-center gap-3">
         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <span>Недостаточно товаров для сравнения. Добавьте минимум 2 товара.</span>
-        <a href="/items/" class="btn btn-sm sm:btn-md min-h-[44px]">Добавить товары</a>
+        <a href="/items/" class="btn btn-sm sm:btn-md min-h-[44px] w-full sm:w-auto">Добавить товары</a>
     </div>
 
 </div>
