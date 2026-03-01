@@ -2,6 +2,7 @@
 Wishlist API endpoints - Django Ninja
 """
 import logging
+import random
 import uuid
 
 from ninja import Router
@@ -154,22 +155,26 @@ def _invalidate_pair_cache(user_id: int):
 # ============================================================================
 
 @router.get("/items", response=List[ItemSchema], auth=auth)
-def list_items(request):
-    """Получить все товары пользователя"""
+def list_items(request, limit: int = 200, offset: int = 0):
+    """Получить товары пользователя (с пагинацией)"""
+    safe_limit = max(1, min(limit, 200))
+    safe_offset = max(0, offset)
+
     items = Item.objects.filter(
         user=request.auth,
         is_active=True
-    ).select_related('product')
+    ).select_related('product')[safe_offset:safe_offset + safe_limit]
     return [serialize_item(item) for item in items]
 
 
 @router.get("/items/top", response=List[ItemSchema], auth=auth)
 def top_items(request, limit: int = 10):
     """Получить топ товаров по рейтингу"""
+    safe_limit = max(1, min(limit, 50))
     items = Item.objects.filter(
         user=request.auth,
         is_active=True
-    ).select_related('product').order_by('-elo_rating')[:limit]
+    ).select_related('product').order_by('-elo_rating')[:safe_limit]
     return [serialize_item(item) for item in items]
 
 
@@ -582,41 +587,75 @@ def get_comparison_pair(request, session_type: str = "all"):
 @router.post("/compare", response=ComparisonSchema, auth=auth)
 def create_comparison(request, payload: ComparisonCreateSchema):
     """Сохранить результат сравнения"""
-    item1 = get_object_or_404(Item, id=payload.item1_id, user=request.auth)
-    item2 = get_object_or_404(Item, id=payload.item2_id, user=request.auth)
-    winner = get_object_or_404(Item, id=payload.winner_id, user=request.auth)
+    if payload.item1_id == payload.item2_id:
+        raise ValidationError("Items for comparison must be different")
 
-    # Валидация: winner должен быть одним из сравниваемых товаров
-    if winner.id not in [item1.id, item2.id]:
-        raise ValidationError("Winner must be one of the compared items")
+    with transaction.atomic():
+        locked_items = (
+            Item.objects.select_for_update()
+            .filter(
+                user=request.auth,
+                is_active=True,
+                id__in=[payload.item1_id, payload.item2_id],
+            )
+            .select_related('product')
+        )
+        items_by_id = {item.id: item for item in locked_items}
 
-    # Сохранить текущие рейтинги
-    item1_before = item1.elo_rating
-    item2_before = item2.elo_rating
+        item1 = items_by_id.get(payload.item1_id)
+        item2 = items_by_id.get(payload.item2_id)
+        if not item1 or not item2:
+            raise NotFoundError("One or both compared items not found")
 
-    # Обновить ELO рейтинги
-    if winner.id == item1.id:
-        item1.update_elo(item2, won=True)
-        item2.update_elo(item1, won=False)
-    else:
-        item2.update_elo(item1, won=True)
-        item1.update_elo(item2, won=False)
+        if payload.winner_id not in (item1.id, item2.id):
+            raise ValidationError("Winner must be one of the compared items")
 
-    # Обновить данные после изменения
-    item1.refresh_from_db()
-    item2.refresh_from_db()
+        winner = item1 if payload.winner_id == item1.id else item2
 
-    # Создать запись сравнения
-    comparison = Comparison.objects.create(
-        user=request.auth,
-        item1=item1,
-        item2=item2,
-        winner=winner,
-        item1_rating_before=item1_before,
-        item2_rating_before=item2_before,
-        item1_rating_after=item1.elo_rating,
-        item2_rating_after=item2.elo_rating
-    )
+        # Берем снэпшот до изменений, чтобы расчеты для обоих товаров были симметричными.
+        item1_before_rating = item1.elo_rating
+        item2_before_rating = item2.elo_rating
+        item1_before_count = item1.comparisons_count
+        item2_before_count = item2.comparisons_count
+
+        item1_change = item1.calculate_elo_change(
+            item2_before_rating,
+            won=(winner.id == item1.id),
+            current_rating=item1_before_rating,
+            comparisons_count=item1_before_count,
+        )
+        item2_change = item2.calculate_elo_change(
+            item1_before_rating,
+            won=(winner.id == item2.id),
+            current_rating=item2_before_rating,
+            comparisons_count=item2_before_count,
+        )
+
+        item1.elo_rating = item1_before_rating + item1_change
+        item2.elo_rating = item2_before_rating + item2_change
+        item1.comparisons_count = item1_before_count + 1
+        item2.comparisons_count = item2_before_count + 1
+
+        if winner.id == item1.id:
+            item1.wins += 1
+            item2.losses += 1
+        else:
+            item2.wins += 1
+            item1.losses += 1
+
+        item1.save(update_fields=['elo_rating', 'comparisons_count', 'wins', 'losses'])
+        item2.save(update_fields=['elo_rating', 'comparisons_count', 'wins', 'losses'])
+
+        comparison = Comparison.objects.create(
+            user=request.auth,
+            item1=item1,
+            item2=item2,
+            winner=winner,
+            item1_rating_before=item1_before_rating,
+            item2_rating_before=item2_before_rating,
+            item1_rating_after=item1.elo_rating,
+            item2_rating_after=item2.elo_rating,
+        )
 
     _invalidate_pair_cache(request.auth.id)
 
@@ -626,9 +665,10 @@ def create_comparison(request, payload: ComparisonCreateSchema):
 @router.get("/comparisons", response=List[ComparisonSchema], auth=auth)
 def list_comparisons(request, limit: int = 50):
     """Получить историю сравнений"""
+    safe_limit = max(1, min(limit, 200))
     comparisons = Comparison.objects.filter(
         user=request.auth
-    ).order_by('-created_at')[:limit]
+    ).order_by('-created_at')[:safe_limit]
     return list(comparisons)
 
 
@@ -695,7 +735,7 @@ def get_profile(request):
         "email": request.auth.email or "",
         "first_name": request.auth.first_name or "",
         "last_name": request.auth.last_name or "",
-        "phone": profile.phone or ""
+        "phone": profile.phone or "",
     }
 
 
@@ -712,10 +752,13 @@ def update_profile(request, payload: ProfileUpdateSchema):
     if payload.last_name is not None:
         user.last_name = payload.last_name
     if payload.email is not None:
+        normalized_email = payload.email.strip().lower()
+        if not normalized_email:
+            raise ValidationError('Email не может быть пустым')
         # Проверяем уникальность email среди других пользователей
-        if User.objects.filter(email=payload.email).exclude(pk=user.pk).exists():
+        if User.objects.filter(email__iexact=normalized_email).exclude(pk=user.pk).exists():
             raise ValidationError('Данный email уже занят другим пользователем')
-        user.email = payload.email
+        user.email = normalized_email
     user.save()
 
     # Обновляем телефон в профиле
@@ -729,7 +772,7 @@ def update_profile(request, payload: ProfileUpdateSchema):
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "phone": profile.phone or ""
+        "phone": profile.phone or "",
     }
 
 

@@ -17,10 +17,36 @@ import re
 import json
 import os
 import shutil
+import random
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Tuple
 
 logger = logging.getLogger(__name__)
+SELENIUM_SLEEP_SCALE = max(0.1, float(os.getenv('SELENIUM_SLEEP_SCALE', '0.7')))
+DEFAULT_WB_USER_AGENTS = [
+    (
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/131.0.0.0 Safari/537.36'
+    ),
+    (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/131.0.0.0 Safari/537.36'
+    ),
+    (
+        'Mozilla/5.0 (X11; Linux x86_64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/131.0.0.0 Safari/537.36'
+    ),
+]
+
+
+def _sleep(seconds: float):
+    """Единая точка управления задержками Selenium."""
+    delay = max(0.0, seconds * SELENIUM_SLEEP_SCALE)
+    if delay > 0:
+        time.sleep(delay)
 
 
 class SeleniumWildberriesParser:
@@ -33,6 +59,90 @@ class SeleniumWildberriesParser:
         """
         self.headless = headless
         self.driver = None
+        self._cookies_loaded_for_session = False
+        self._session_count = 0
+        self._selected_user_agent = None
+        self._selected_proxy = None
+        self._user_agents = self._parse_env_list('WB_SELENIUM_USER_AGENTS') or list(DEFAULT_WB_USER_AGENTS)
+        self._user_agent_index = random.randrange(len(self._user_agents)) if self._user_agents else 0
+        self._proxy_pool = self._parse_env_list('WB_SELENIUM_PROXIES')
+        self._proxy_index = random.randrange(len(self._proxy_pool)) if self._proxy_pool else 0
+        self._retry_attempts = max(1, int(os.getenv('WB_PARSER_RETRY_ATTEMPTS', '2')))
+        self._retry_base_delay = max(0.0, float(os.getenv('WB_PARSER_RETRY_BASE_DELAY', '1.5')))
+        self._retry_max_delay = max(
+            self._retry_base_delay,
+            float(os.getenv('WB_PARSER_RETRY_MAX_DELAY', '12')),
+        )
+        self._retry_jitter = max(0.0, float(os.getenv('WB_PARSER_RETRY_JITTER', '0.4')))
+        self._restart_session_on_retry = os.getenv('WB_PARSER_RESTART_SESSION_ON_RETRY', 'false').lower() in {
+            '1', 'true', 'yes'
+        }
+        self._parser_cookies_enabled = os.getenv('WB_PARSER_COOKIES_ENABLED', 'true').lower() not in {
+            '0', 'false', 'no'
+        }
+        self._parser_cookies_file = Path(
+            os.getenv('WB_PARSER_COOKIES_FILE', '/tmp/wb_cookies/parser_session.json')
+        )
+
+    def _parse_env_list(self, env_name: str) -> List[str]:
+        raw = os.getenv(env_name, '')
+        if not raw:
+            return []
+        return [chunk.strip() for chunk in re.split(r'[\n,;]+', raw) if chunk.strip()]
+
+    def _next_user_agent(self) -> str:
+        if not self._user_agents:
+            return DEFAULT_WB_USER_AGENTS[0]
+        user_agent = self._user_agents[self._user_agent_index % len(self._user_agents)]
+        self._user_agent_index += 1
+        return user_agent
+
+    def _next_proxy(self) -> Optional[str]:
+        if not self._proxy_pool:
+            return None
+        proxy = self._proxy_pool[self._proxy_index % len(self._proxy_pool)]
+        self._proxy_index += 1
+        return proxy
+
+    def _retry_delay(self, retry_number: int) -> float:
+        base_delay = self._retry_base_delay * (2 ** max(0, retry_number - 1))
+        delay = min(self._retry_max_delay, base_delay)
+        if self._retry_jitter > 0:
+            delay += random.uniform(0, self._retry_jitter)
+        return delay
+
+    def _prepare_parser_cookies(self):
+        if not self._parser_cookies_enabled:
+            return
+        try:
+            self._parser_cookies_file.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as error:
+            logger.debug(f"Не удалось подготовить директорию cookies: {error}")
+
+    def _ensure_wb_session_cookies(self):
+        if not self._parser_cookies_enabled or self._cookies_loaded_for_session:
+            return
+        if not self.driver:
+            return
+
+        self._prepare_parser_cookies()
+        try:
+            self.driver.get('https://www.wildberries.ru')
+            _sleep(1)
+            if self._parser_cookies_file.exists():
+                if self.load_cookies(str(self._parser_cookies_file)):
+                    self.driver.get('https://www.wildberries.ru')
+                    _sleep(1)
+                    logger.info("WB cookies восстановлены для текущей Selenium-сессии")
+            self._cookies_loaded_for_session = True
+        except Exception as error:
+            logger.debug(f"Не удалось применить cookies сессии WB: {error}")
+
+    def _save_wb_session_cookies(self):
+        if not self._parser_cookies_enabled or not self.driver:
+            return
+        self._prepare_parser_cookies()
+        self.save_cookies(str(self._parser_cookies_file))
 
     def _init_driver(self):
         """Инициализация Chrome WebDriver"""
@@ -60,11 +170,11 @@ class SeleniumWildberriesParser:
         chrome_options.add_argument('--js-flags=--max-old-space-size=128')
         chrome_options.add_argument('--window-size=1280,720')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_argument(
-            'user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/131.0.0.0 Safari/537.36'
-        )
+        self._selected_user_agent = self._next_user_agent()
+        self._selected_proxy = self._next_proxy()
+        chrome_options.add_argument(f'user-agent={self._selected_user_agent}')
+        if self._selected_proxy:
+            chrome_options.add_argument(f'--proxy-server={self._selected_proxy}')
 
         try:
             if remote_url:
@@ -105,6 +215,13 @@ class SeleniumWildberriesParser:
             self.driver.execute_script(
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
+            self._cookies_loaded_for_session = False
+            self._session_count += 1
+            logger.info(
+                "Сессия Selenium #%s (proxy=%s)",
+                self._session_count,
+                self._selected_proxy or 'off',
+            )
             logger.info("Chrome WebDriver готов")
 
         except Exception as e:
@@ -117,6 +234,7 @@ class SeleniumWildberriesParser:
             try:
                 self.driver.quit()
                 self.driver = None
+                self._cookies_loaded_for_session = False
                 logger.info("Chrome WebDriver закрыт")
             except Exception as e:
                 logger.error(f"Ошибка при закрытии драйвера: {e}")
@@ -298,94 +416,342 @@ class SeleniumWildberriesParser:
 
         return fallback
 
-    def parse(self, url, timeout=30):
+    def _normalize_product_url(self, url: str):
+        """Нормализует URL карточки WB и удаляет невидимые символы."""
+        if not url:
+            return url, None
+
+        # Убираем zero-width/format chars, которые иногда попадают из share-текста.
+        cleaned = re.sub(r'[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]', '', str(url)).strip()
+        article_match = re.search(r'/catalog/(\d+)/', cleaned)
+        article_code = article_match.group(1) if article_match else None
+
+        if article_code:
+            return f"https://www.wildberries.ru/catalog/{article_code}/detail.aspx", article_code
+
+        return cleaned, None
+
+    def _clean_extracted_name(self, raw_name: Optional[str], article_code: Optional[str] = None):
+        """Чистит склеенные WB-названия: удаляет скидки, цены, промо-блоки и хвосты рейтинга."""
+        if not raw_name:
+            return None
+
+        text = str(raw_name)
+        text = re.sub(r'[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]', '', text)
+        text = text.replace('\u00A0', ' ').strip()
+        text = re.sub(r'(?<=[A-Za-zА-Яа-яЁё])(?=\d)', ' ', text)
+        text = re.sub(r'(?<=\d)(?=[A-Za-zА-Яа-яЁё])', ' ', text)
+
+        noisy_markers = (
+            '₽' in text
+            or 'похожие товары' in text.lower()
+            or 'wb кошельком' in text.lower()
+        )
+
+        if noisy_markers:
+            text = re.sub(r'^(?:[−\-–—+]?\s*\d{1,3}\s*%\s*)+', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'^(?:\d[\d\s]{1,10}\s*₽\s*){1,3}', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'^\s*похожие\s*товары\s*', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'^\s*с\s*wb\s*кошельком\s*', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'похожие\s*товары\s*с?\s*wb\s*кошельком', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'\bс\s*wb\s*кошельком\b', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'\bпохожие\s*товары\b', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'(?:\s+\d[\d\s]{1,10}\s*₽){1,3}\s*$', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'\s+[1-5](?:[.,]\d{1,3})\s+\d{2,3}(?:[\s\u00A0]?\d{3})*\s*$', '', text)
+
+        if article_code:
+            text = re.sub(rf'\b{re.escape(str(article_code))}\b$', '', text).strip()
+
+        text = re.sub(r'\s{2,}', ' ', text).strip(' \t\r\n-–—|/')
+        if len(text) < 3:
+            return None
+        if re.fullmatch(r'[\d\s%₽.,\-–—+]+', text):
+            return None
+        return text[:500]
+
+    def _extract_from_visible_text(
+        self,
+        page_title: str,
+        body_text: str,
+        article_code: Optional[str] = None,
+        allow_body_fallback: bool = False,
+    ):
+        """Fallback по видимому тексту страницы (устойчив к изменениям внутренних JSON-полей)."""
+        fallback: Dict[str, Optional[Any]] = {
+            'name': None,
+            'price': None,
+            'rating': None,
+            'reviews_count': None,
+        }
+
+        title = (page_title or '').strip()
+        body = (body_text or '').strip()
+
+        if title:
+            title_match = re.search(
+                r'^(.*?)\s+купить\s+за\s+([0-9\s\u00A0]+)\s*₽',
+                title,
+                re.IGNORECASE,
+            )
+            if title_match:
+                name = title_match.group(1).strip()
+                if article_code:
+                    name = re.sub(rf'\s+{re.escape(article_code)}\s*$', '', name).strip()
+                fallback['name'] = self._clean_extracted_name(name, article_code=article_code)
+
+                price_digits = re.sub(r'\D', '', title_match.group(2))
+                if price_digits:
+                    try:
+                        fallback['price'] = Decimal(price_digits)
+                    except Exception:
+                        pass
+
+        if body and allow_body_fallback:
+            if fallback['rating'] is None or fallback['reviews_count'] is None:
+                rating_match = re.search(
+                    r'([0-9]+(?:[.,][0-9]+)?)\s*·\s*(\d+)\s*оцен',
+                    body,
+                    re.IGNORECASE,
+                )
+                if rating_match:
+                    if fallback['rating'] is None:
+                        try:
+                            fallback['rating'] = float(rating_match.group(1).replace(',', '.'))
+                        except Exception:
+                            pass
+                    if fallback['reviews_count'] is None:
+                        try:
+                            fallback['reviews_count'] = int(rating_match.group(2))
+                        except Exception:
+                            pass
+
+            if fallback['name'] is None:
+                lines = [line.strip() for line in body.splitlines() if line.strip()]
+                for idx, line in enumerate(lines):
+                    if re.search(r'^\d+(?:[.,]\d+)?\s*·\s*\d+\s*оцен', line):
+                        for prev in range(idx - 1, max(-1, idx - 4), -1):
+                            candidate = lines[prev]
+                            if candidate.lower() in {'оригинал', 'сезон скидок', 'похожие'}:
+                                continue
+                            if len(candidate) >= 3:
+                                fallback['name'] = self._clean_extracted_name(candidate, article_code=article_code)
+                                break
+                        if fallback['name']:
+                            break
+
+            if fallback['price'] is None:
+                price_match = re.search(
+                    r'([0-9][0-9\s\u00A0]{2,})\s*₽',
+                    body,
+                    re.IGNORECASE,
+                )
+                if price_match:
+                    price_digits = re.sub(r'\D', '', price_match.group(1))
+                    if price_digits:
+                        try:
+                            fallback['price'] = Decimal(price_digits)
+                        except Exception:
+                            pass
+
+        if fallback.get('name'):
+            fallback['name'] = self._clean_extracted_name(fallback['name'], article_code=article_code)
+        return fallback
+
+    def _is_antibot_page(self, page_title: str, body_text: str):
+        """Определяет страницы антибот-проверки Wildberries."""
+        title = (page_title or '').lower()
+        body = (body_text or '').lower()
+        markers = (
+            'почти готово',
+            'подозрительная активность',
+            'новая попытка через',
+            'captcha-support@rwb.ru',
+            'что-то не так',
+        )
+        if any(marker in title for marker in markers):
+            return True
+        if any(marker in body for marker in markers):
+            return True
+        return False
+
+    def _parse_once(self, normalized_url: str, article_code: Optional[str], timeout: int) -> Tuple[Optional[Dict[str, Any]], str]:
+        self._init_driver()
+        driver = self.driver
+        if driver is None:
+            logger.error("WebDriver не инициализирован")
+            return None, 'driver_init_failed'
+
+        self._ensure_wb_session_cookies()
+
+        logger.info(f"Открываю страницу: {normalized_url}")
+        driver.get(normalized_url)
+
+        wait_timed_out = False
+        wait = WebDriverWait(driver, timeout)
+        try:
+            wait.until(EC.presence_of_element_located((
+                By.CSS_SELECTOR,
+                ', '.join([
+                    'ins.price-block__final-price',
+                    '.price-block__final-price',
+                    'ins[class*="price"]',
+                    '[class*="price-block__final"]',
+                    'h1',
+                    '[class*="productTitle"]',
+                ])
+            )))
+        except TimeoutException:
+            wait_timed_out = True
+            logger.warning("Таймаут ожидания загрузки страницы")
+
+        source = driver.page_source
+        result = self._extract_all_from_source(source)
+
+        page_title = driver.title or ''
+        body_text = ''
+        try:
+            body_text = driver.find_element(By.TAG_NAME, 'body').text or ''
+        except Exception:
+            pass
+
+        has_article_marker = bool(
+            article_code and re.search(rf'Артикул\s*{re.escape(article_code)}', body_text, re.IGNORECASE)
+        )
+        has_title_product_hint = bool(
+            re.search(r'\bкупить\s+за\s+[0-9\s\u00A0]+\s*₽', page_title, re.IGNORECASE)
+        )
+
+        visible_fallback = self._extract_from_visible_text(
+            page_title,
+            body_text,
+            article_code=article_code,
+            allow_body_fallback=bool(has_article_marker or has_title_product_hint or result.get('name')),
+        )
+        for field in ('name', 'price', 'rating', 'reviews_count'):
+            if result.get(field) in (None, '') and visible_fallback.get(field) is not None:
+                result[field] = visible_fallback[field]
+
+        if not result.get('image_url'):
+            for selector in [
+                '.product-page__img-wrap img',
+                '.img-plug img',
+                '[class*="product"] img[src*="basket"]',
+                'img[src*="wbbasket"]',
+            ]:
+                try:
+                    img_elem = driver.find_element(By.CSS_SELECTOR, selector)
+                    img_src = (
+                        self._extract_largest_src_from_srcset(img_elem.get_attribute('srcset'))
+                        or img_elem.get_attribute('src')
+                        or img_elem.get_attribute('data-src')
+                    )
+                    if img_src and 'basket' in img_src:
+                        result['image_url'] = self._normalize_image_url(img_src)
+                        break
+                except (NoSuchElementException, Exception):
+                    continue
+
+        if not result.get('image_url'):
+            article_match = re.search(r'/catalog/(\d+)/', normalized_url)
+            if article_match:
+                article = article_match.group(1)
+                vol = article[:4]
+                part = article[:6]
+                result['image_url'] = f"https://basket-01.wbbasket.ru/vol{vol}/part{part}/{article}/images/big/1.webp"
+
+        if result.get('rating') is not None:
+            try:
+                result['rating'] = float(str(result['rating']).replace(',', '.'))
+            except Exception:
+                result['rating'] = None
+
+        if self._is_antibot_page(page_title, body_text) and not (result.get('name') or result.get('price')):
+            logger.warning("Страница антибот-проверки Wildberries, данные товара недоступны")
+            return None, 'antibot'
+
+        if result.get('name'):
+            result['name'] = self._clean_extracted_name(result.get('name'), article_code=article_code)
+
+        if result['name']:
+            safe_name = (result.get('name') or '?')[:40]
+            logger.info(f"Парсинг успешен: {safe_name}, {result.get('price')} р.")
+            return result, 'ok'
+
+        if result.get('price') and not result.get('name'):
+            logger.warning("Извлечена только цена без названия, парсинг считается неуспешным")
+            return None, 'price_only'
+        if has_article_marker:
+            logger.warning("Не удалось извлечь данные товара (карточка открыта, но поля не распознаны)")
+            return None, 'fields_missing'
+        if wait_timed_out:
+            logger.warning("Не удалось извлечь данные товара (таймаут загрузки карточки)")
+            return None, 'timeout'
+
+        logger.warning("Не удалось извлечь данные товара (карточка недоступна/товар удален)")
+        return None, 'unavailable'
+
+    def parse(self, url, timeout=30, retries=None):
         """
-        Парсинг товара Wildberries
+        Парсинг товара Wildberries с повторными попытками.
 
         Args:
             url: URL товара
             timeout: Максимальное время ожидания (сек)
+            retries: Количество попыток (по умолчанию из WB_PARSER_RETRY_ATTEMPTS)
 
         Returns:
             Dict с данными товара или None
         """
-        try:
-            self._init_driver()
-            driver = self.driver
-            if driver is None:
-                logger.error("WebDriver не инициализирован")
-                return None
+        normalized_url, article_code = self._normalize_product_url(url)
+        max_attempts = self._retry_attempts if retries is None else max(1, int(retries))
+        last_reason = 'unknown'
+        restart_reasons = {'antibot', 'timeout', 'exception', 'driver_init_failed'}
 
-            logger.info(f"Открываю страницу: {url}")
-            driver.get(url)
+        for attempt in range(1, max_attempts + 1):
+            if attempt > 1:
+                delay = self._retry_delay(attempt - 1)
+                logger.info(
+                    "Повторная попытка %s/%s для %s через %.1f сек (причина: %s)",
+                    attempt,
+                    max_attempts,
+                    article_code or normalized_url,
+                    delay,
+                    last_reason,
+                )
+                _sleep(delay)
+                should_restart_session = self._restart_session_on_retry or last_reason in restart_reasons
+                if should_restart_session:
+                    self._close_driver()
 
-            # Одно ожидание: любой признак загрузки страницы (цена или заголовок)
-            wait = WebDriverWait(driver, timeout)
             try:
-                wait.until(EC.presence_of_element_located((
-                    By.CSS_SELECTOR,
-                    ', '.join([
-                        'ins.price-block__final-price',
-                        '.price-block__final-price',
-                        'ins[class*="price"]',
-                        '[class*="price-block__final"]',
-                        'h1',
-                        '[class*="productTitle"]',
-                    ])
-                )))
-            except TimeoutException:
-                logger.warning("Таймаут ожидания загрузки страницы")
+                parsed, reason = self._parse_once(
+                    normalized_url=normalized_url,
+                    article_code=article_code,
+                    timeout=timeout,
+                )
+                last_reason = reason
+                if parsed:
+                    self._save_wb_session_cookies()
+                    return parsed
+            except Exception as error:
+                last_reason = 'exception'
+                logger.warning(
+                    "Ошибка попытки %s/%s парсинга %s: %s",
+                    attempt,
+                    max_attempts,
+                    article_code or normalized_url,
+                    error,
+                )
+                if attempt == max_attempts:
+                    logger.error(f"Ошибка при парсинге через Selenium: {error}", exc_info=True)
 
-            # Извлекаем всё из page_source за один проход (быстрее чем DOM-запросы)
-            source = driver.page_source
-            result = self._extract_all_from_source(source)
-
-            # Картинку берём из DOM — srcset/src не всегда есть в HTML
-            if not result.get('image_url'):
-                for selector in [
-                    '.product-page__img-wrap img',
-                    '.img-plug img',
-                    '[class*="product"] img[src*="basket"]',
-                    'img[src*="wbbasket"]',
-                ]:
-                    try:
-                        img_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                        img_src = (
-                            self._extract_largest_src_from_srcset(img_elem.get_attribute('srcset'))
-                            or img_elem.get_attribute('src')
-                            or img_elem.get_attribute('data-src')
-                        )
-                        if img_src and 'basket' in img_src:
-                            result['image_url'] = self._normalize_image_url(img_src)
-                            break
-                    except (NoSuchElementException, Exception):
-                        continue
-
-            # Fallback картинка по артикулу
-            if not result.get('image_url'):
-                article_match = re.search(r'/catalog/(\d+)/', url)
-                if article_match:
-                    article = article_match.group(1)
-                    vol = article[:4]
-                    part = article[:6]
-                    result['image_url'] = f"https://basket-01.wbbasket.ru/vol{vol}/part{part}/{article}/images/big/1.webp"
-
-            if result.get('rating') is not None:
-                try:
-                    result['rating'] = float(str(result['rating']).replace(',', '.'))
-                except Exception:
-                    result['rating'] = None
-
-            if result['name'] or result['price']:
-                logger.info(f"Парсинг успешен: {result.get('name', '?')[:40]}, {result.get('price')} р.")
-                return result
-            else:
-                logger.warning("Не удалось извлечь данные товара")
-                return None
-
-        except Exception as e:
-            logger.error(f"Ошибка при парсинге через Selenium: {e}", exc_info=True)
-            return None
+        logger.warning(
+            "Парсинг неуспешен после %s попыток для %s (последняя причина: %s)",
+            max_attempts,
+            article_code or normalized_url,
+            last_reason,
+        )
+        return None
 
     def _extract_all_from_source(self, source):
         """
@@ -474,7 +840,7 @@ class SeleniumWildberriesParser:
                 source, re.IGNORECASE,
             )
             if m:
-                result['name'] = m.group(1).strip()
+                result['name'] = self._clean_extracted_name(m.group(1).strip())
 
         if not result['brand']:
             m = re.search(
@@ -551,6 +917,9 @@ class SeleniumWildberriesParser:
             if m:
                 result['image_url'] = self._normalize_image_url(m.group(1))
 
+        if result.get('name'):
+            result['name'] = self._clean_extracted_name(result.get('name'))
+
         return result
 
     def save_cookies(self, filepath):
@@ -622,7 +991,7 @@ class SeleniumWildberriesParser:
 
             logger.info("Открываю Wildberries...")
             driver.get('https://www.wildberries.ru')
-            time.sleep(2)
+            _sleep(2)
 
             # Пытаемся загрузить cookies
             cookies_loaded = self.load_cookies(str(cookies_file))
@@ -631,12 +1000,12 @@ class SeleniumWildberriesParser:
                 # Обновляем страницу, чтобы cookies применились
                 logger.info("Обновляю страницу с загруженными cookies...")
                 driver.refresh()
-                time.sleep(3)
+                _sleep(3)
 
             # Переходим на страницу избранного
             logger.info("Переходжу на страницу избранного...")
             driver.get('https://www.wildberries.ru/lk/favorites')
-            time.sleep(5)
+            _sleep(5)
 
             # Проверяем, авторизован ли пользователь
             current_url = driver.current_url
@@ -651,7 +1020,7 @@ class SeleniumWildberriesParser:
                 start_time = time.time()
 
                 while time.time() - start_time < wait_time:
-                    time.sleep(2)
+                    _sleep(2)
                     current_url = driver.current_url
                     if '/lk/favorites' in current_url or '/lk/' in current_url:
                         logger.info("✅ Пользователь авторизован!")
@@ -663,7 +1032,7 @@ class SeleniumWildberriesParser:
                         # Переходим на избранное, если попали в другой раздел ЛК
                         if '/lk/favorites' not in current_url:
                             driver.get('https://www.wildberries.ru/lk/favorites')
-                            time.sleep(3)
+                            _sleep(3)
                         break
 
                 if not is_authorized:
@@ -676,7 +1045,7 @@ class SeleniumWildberriesParser:
             logger.info("✅ На странице избранного. Начинаю сбор товаров...")
 
             # Даем время на загрузку JavaScript и товаров
-            time.sleep(5)
+            _sleep(5)
 
             # Скроллим страницу для подгрузки всех товаров
             logger.info("Скроллю страницу для загрузки всех товаров...")
@@ -686,7 +1055,7 @@ class SeleniumWildberriesParser:
             while no_change_count < 3:
                 # Скроллим вниз
                 driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(2)
+                _sleep(2)
 
                 # Проверяем изменение высоты
                 new_height = driver.execute_script("return document.body.scrollHeight")
@@ -782,16 +1151,16 @@ class SeleniumWildberriesParser:
 
             # Ждем загрузки и прохождения антибота (больше времени для JS)
             logger.info("Ожидание загрузки JavaScript...")
-            time.sleep(5)
+            _sleep(5)
 
             # Попробуем прокрутить страницу, чтобы триггернуть загрузку контента
             logger.info("Скроллю страницу для загрузки контента...")
             for i in range(5):
                 driver.execute_script("window.scrollBy(0, 500);")
-                time.sleep(1)
+                _sleep(1)
 
             # Ещё немного ждём после скроллинга
-            time.sleep(5)
+            _sleep(5)
 
             # Логируем что видим на странице
             page_title = driver.title
@@ -855,6 +1224,7 @@ class SeleniumWildberriesParser:
                             name = f"{brand} {product_name}" if brand else product_name
                         except:
                             name = f"Товар {article_code}"
+                        name = self._clean_extracted_name(name, article_code=article_code) or f"Товар {article_code}"
 
                         # Цена - ищем элемент с классом price__lower-price
                         price = None
@@ -909,7 +1279,7 @@ class SeleniumWildberriesParser:
                 # Скроллим вниз для подгрузки новых товаров
                 if len(products) < max_items:
                     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                    time.sleep(scroll_pause)
+                    _sleep(scroll_pause)
 
             logger.info(f"✅ Собрано {len(products)} товаров из каталога")
             return products
@@ -983,7 +1353,7 @@ def parse_ozon_product_with_selenium(url, headless=True, timeout=30):
             return None
 
         driver.get(url)
-        time.sleep(3)
+        _sleep(3)
         wait = WebDriverWait(driver, timeout)
 
         result = {
@@ -1143,14 +1513,14 @@ def parse_ozon_favorites_with_selenium(user_id=None, headless=False, max_items=5
 
         logger.info("Открываю Ozon...")
         driver.get('https://www.ozon.ru')
-        time.sleep(3)
+        _sleep(3)
 
         # Пробуем восстановить сессию из cookies
         cookies_loaded = parser.load_cookies(str(cookies_file))
         if cookies_loaded:
             logger.info("Cookies Ozon загружены, обновляю страницу...")
             driver.refresh()
-            time.sleep(3)
+            _sleep(3)
 
         def requires_auth(current_url):
             url = (current_url or '').lower()
@@ -1160,7 +1530,7 @@ def parse_ozon_favorites_with_selenium(user_id=None, headless=False, max_items=5
             """Проверка авторизации через переход в личный кабинет."""
             try:
                 driver.get('https://www.ozon.ru/my/')
-                time.sleep(2)
+                _sleep(2)
                 current = (driver.current_url or '').lower()
                 if requires_auth(current):
                     return False
@@ -1204,7 +1574,7 @@ def parse_ozon_favorites_with_selenium(user_id=None, headless=False, max_items=5
 
         for fav_url in favorites_urls:
             driver.get(fav_url)
-            time.sleep(3)
+            _sleep(3)
             if not requires_auth(driver.current_url):
                 break
 
@@ -1218,14 +1588,14 @@ def parse_ozon_favorites_with_selenium(user_id=None, headless=False, max_items=5
             logger.info("Ожидание авторизации Ozon (120 секунд)...")
             start = time.time()
             while time.time() - start < 120:
-                time.sleep(2)
+                _sleep(2)
                 if is_ozon_authorized():
                     authorized = True
                     break
 
             for fav_url in favorites_urls:
                 driver.get(fav_url)
-                time.sleep(3)
+                _sleep(3)
                 if 'favorites' in driver.current_url.lower():
                     break
 
@@ -1242,7 +1612,7 @@ def parse_ozon_favorites_with_selenium(user_id=None, headless=False, max_items=5
         source_links = set()
         while stale < 4:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
+            _sleep(2)
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == prev_height:
                 stale += 1
@@ -1323,7 +1693,7 @@ def connect_ozon_session_with_selenium(user_id=None, headless=False, _allow_head
         def is_ozon_authorized():
             try:
                 driver.get('https://www.ozon.ru/my/')
-                time.sleep(2)
+                _sleep(2)
                 current = (driver.current_url or '').lower()
                 if requires_auth(current):
                     return False
@@ -1336,12 +1706,12 @@ def connect_ozon_session_with_selenium(user_id=None, headless=False, _allow_head
                 return False
 
         driver.get('https://www.ozon.ru')
-        time.sleep(3)
+        _sleep(3)
 
         cookies_loaded = parser.load_cookies(str(cookies_file))
         if cookies_loaded:
             driver.refresh()
-            time.sleep(3)
+            _sleep(3)
 
         if headless and not cookies_loaded:
             return {
@@ -1362,7 +1732,7 @@ def connect_ozon_session_with_selenium(user_id=None, headless=False, _allow_head
             logger.info('Ожидание авторизации Ozon (120 секунд)...')
             start = time.time()
             while time.time() - start < 120:
-                time.sleep(2)
+                _sleep(2)
                 if is_ozon_authorized():
                     authorized = True
                     break

@@ -2,17 +2,36 @@ from celery import shared_task, current_task
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.cache import cache
+from django.db.models import Q
 from .models import Item, Product, PriceHistory, ImportRun
 from .parsers import get_parser
 import logging
 from django.utils import timezone
 from decimal import Decimal
 import hashlib
+import os
+import re
 from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 PARSED_PRODUCT_CACHE_TTL = int(getattr(settings, 'PARSED_PRODUCT_CACHE_TTL', 172800))
 PARSED_PRODUCT_FRESH_FOR = timedelta(seconds=PARSED_PRODUCT_CACHE_TTL)
+TASK_PROGRESS_STEP = max(1, int(os.environ.get('TASK_PROGRESS_STEP', '10')))
+IMPORT_FAVORITES_DELAY_SEC = max(0.0, float(os.environ.get('IMPORT_FAVORITES_DELAY_SEC', '0.2')))
+WB_BATCH_PARSE_RETRIES = max(1, int(os.environ.get('WB_BATCH_PARSE_RETRIES', '2')))
+WB_BATCH_PARSE_TIMEOUT = max(5, int(os.environ.get('WB_BATCH_PARSE_TIMEOUT', '25')))
+WB_NIGHTLY_RECOVERY_BATCH_SIZE = max(1, int(os.environ.get('WB_NIGHTLY_RECOVERY_BATCH_SIZE', '20')))
+WB_NIGHTLY_RECOVERY_RETRIES = max(1, int(os.environ.get('WB_NIGHTLY_RECOVERY_RETRIES', '3')))
+WB_NIGHTLY_RECOVERY_TIMEOUT = max(5, int(os.environ.get('WB_NIGHTLY_RECOVERY_TIMEOUT', '35')))
+WB_NIGHTLY_RECOVERY_COOLDOWN_HOURS = max(
+    1, int(os.environ.get('WB_NIGHTLY_RECOVERY_COOLDOWN_HOURS', '20'))
+)
+
+
+def _should_publish_progress(index: int, total: int) -> bool:
+    if total <= 0:
+        return True
+    return index == 1 or index == total or index % TASK_PROGRESS_STEP == 0
 
 
 def _parsed_product_cache_key(marketplace, article_code=None, url=None):
@@ -58,6 +77,78 @@ def _to_int_or_none(value):
         return int(value)
     except Exception:
         return None
+
+
+def _clean_wb_title(raw_title: str, article_code: str = ""):
+    """
+    Чистит «склеенные» названия из WB share-текста:
+    убирает скидки, цены, блоки "Похожие товары/с WB Кошельком", хвосты рейтинга.
+    """
+    if not raw_title:
+        return None
+
+    text = str(raw_title)
+    text = re.sub(r'[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]', '', text)
+    text = text.replace('\u00A0', ' ').strip()
+
+    # В WB карточках часто пропадают пробелы на границах буква/цифра.
+    text = re.sub(r'(?<=[A-Za-zА-Яа-яЁё])(?=\d)', ' ', text)
+    text = re.sub(r'(?<=\d)(?=[A-Za-zА-Яа-яЁё])', ' ', text)
+
+    noisy_markers = (
+        '₽' in text
+        or 'похожие товары' in text.lower()
+        or 'wb кошельком' in text.lower()
+    )
+
+    if noisy_markers:
+        # Удаляем типовой шум в начале карточки.
+        text = re.sub(r'^(?:[−\-–—+]?\s*\d{1,3}\s*%\s*)+', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'^(?:\d[\d\s]{1,10}\s*₽\s*){1,3}', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'^\s*похожие\s*товары\s*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'^\s*с\s*wb\s*кошельком\s*', '', text, flags=re.IGNORECASE)
+
+        # Иногда строка приходит как "Похожие товарыс WB Кошельком ...".
+        text = re.sub(r'похожие\s*товары\s*с?\s*wb\s*кошельком', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\bс\s*wb\s*кошельком\b', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\bпохожие\s*товары\b', '', text, flags=re.IGNORECASE)
+
+        # Цены и рейтинг обычно "прилипают" в конец названия.
+        text = re.sub(r'(?:\s+\d[\d\s]{1,10}\s*₽){1,3}\s*$', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s+[1-5](?:[.,]\d{1,3})\s+\d{2,3}(?:[\s\u00A0]?\d{3})*\s*$', '', text)
+
+    if article_code:
+        text = re.sub(rf'\b{re.escape(str(article_code))}\b$', '', text).strip()
+
+    text = re.sub(r'\s{2,}', ' ', text).strip(' \t\r\n-–—|/')
+
+    if len(text) < 3:
+        return None
+    if re.fullmatch(r'[\d\s%₽.,\-–—+]+', text):
+        return None
+
+    return text[:500]
+
+
+def _is_noisy_wb_title(raw_title: str):
+    if not raw_title:
+        return True
+    text = str(raw_title)
+    cleaned = _clean_wb_title(text)
+    if not cleaned:
+        return True
+    normalized = re.sub(r'\s{2,}', ' ', text).strip()
+    if cleaned != normalized:
+        return True
+    noise_markers = (
+        'похожие товары',
+        'wb кошельком',
+        '₽',
+    )
+    lowered = normalized.lower()
+    if any(marker in lowered for marker in noise_markers):
+        return True
+    return False
 
 
 def _extract_wb_urls_from_raw_data(raw_data):
@@ -112,8 +203,6 @@ def _extract_wb_entries_from_raw_data(raw_data):
         Название товара
         https://www.wildberries.ru/catalog/123/detail.aspx?size=...
     """
-    import re
-
     if not raw_data:
         return []
 
@@ -150,10 +239,11 @@ def _extract_wb_entries_from_raw_data(raw_data):
             continue
 
         seen_articles.add(article_code)
+        cleaned_title = _clean_wb_title(last_title or "", article_code=article_code)
         entries.append({
             'article_code': article_code,
             'url': f"https://www.wildberries.ru/catalog/{article_code}/detail.aspx",
-            'name': last_title if last_title else f"Товар {article_code}",
+            'name': cleaned_title or f"Товар {article_code}",
         })
         last_title = None
 
@@ -258,7 +348,11 @@ def update_prices():
                 )
                 result = cache.get(cache_key)
                 if not result:
-                    result = parser.parse(product.url, timeout=25)
+                    result = parser.parse(
+                        product.url,
+                        timeout=WB_BATCH_PARSE_TIMEOUT,
+                        retries=WB_BATCH_PARSE_RETRIES,
+                    )
                     if result:
                         cache.set(cache_key, result, timeout=PARSED_PRODUCT_CACHE_TTL)
 
@@ -729,8 +823,9 @@ def import_favorites_from_wildberries(user_id):
                         errors.append(f"{url}: {error_msg}")
                     logger.warning(f"⚠️ Не удалось импортировать: {url} - {error_msg}")
 
-                # Небольшая пауза между запросами
-                time.sleep(1)
+                # Сниженный rate-limit для ускорения батча без спама запросами.
+                if IMPORT_FAVORITES_DELAY_SEC > 0:
+                    time.sleep(IMPORT_FAVORITES_DELAY_SEC)
 
             except Exception as e:
                 failed_count += 1
@@ -834,7 +929,7 @@ def import_favorites_from_text(self, user_id, raw_data):
         for index, entry in enumerate(entries, start=1):
             article_code = entry.get('article_code')
             url = entry.get('url')
-            name = (entry.get('name') or '').strip()
+            name = _clean_wb_title((entry.get('name') or '').strip(), article_code=article_code) or ''
 
             try:
                 # Этап 1: мгновенное создание/обновление Product без Selenium
@@ -853,7 +948,11 @@ def import_favorites_from_text(self, user_id, raw_data):
                     if url and product.url != url:
                         product.url = url
                         fields_to_update.append('url')
-                    if name and (not product.name or product.name.startswith('Товар ')):
+                    if name and (
+                        not product.name
+                        or product.name.startswith('Товар ')
+                        or _is_noisy_wb_title(product.name)
+                    ):
                         product.name = name
                         fields_to_update.append('name')
                     if not product.image_url:
@@ -889,20 +988,21 @@ def import_favorites_from_text(self, user_id, raw_data):
                 errors.append(f"{article_code or url}: {error_msg}")
                 logger.error(f"❌ Ошибка при импорте {url}: {e}")
 
-            self.update_state(
-                state='STARTED',
-                meta={
-                    'success': True,
-                    'stage': 'fast_import',
-                    'processed': index,
-                    'total': total_entries,
-                    'created': created_count,
-                    'reactivated': reactivated_count,
-                    'duplicates': skipped_duplicates,
-                    'failed': failed_count,
-                    'message': f'Импорт ссылок: {index}/{total_entries}'
-                }
-            )
+            if _should_publish_progress(index, total_entries):
+                self.update_state(
+                    state='STARTED',
+                    meta={
+                        'success': True,
+                        'stage': 'fast_import',
+                        'processed': index,
+                        'total': total_entries,
+                        'created': created_count,
+                        'reactivated': reactivated_count,
+                        'duplicates': skipped_duplicates,
+                        'failed': failed_count,
+                        'message': f'Импорт ссылок: {index}/{total_entries}'
+                    }
+                )
 
         enrich_task_id = None
         if article_codes_for_enrich:
@@ -978,7 +1078,13 @@ def import_favorites_from_text(self, user_id, raw_data):
 
 
 @shared_task(bind=True)
-def enrich_wb_products_batch(self, article_codes, import_run_id=None):
+def enrich_wb_products_batch(
+    self,
+    article_codes,
+    import_run_id=None,
+    parse_retries=None,
+    parse_timeout=None,
+):
     """
     Обогащает WB товары в 1 Selenium-сессии на весь batch.
 
@@ -999,6 +1105,8 @@ def enrich_wb_products_batch(self, article_codes, import_run_id=None):
     failed_count = 0
     selenium_enriched_count = 0
     enrich_start_ts = time.perf_counter()
+    effective_retries = WB_BATCH_PARSE_RETRIES if parse_retries is None else max(1, int(parse_retries))
+    effective_timeout = WB_BATCH_PARSE_TIMEOUT if parse_timeout is None else max(5, int(parse_timeout))
 
     products_queryset = Product.objects.filter(
         marketplace='wildberries',
@@ -1059,7 +1167,11 @@ def enrich_wb_products_batch(self, article_codes, import_run_id=None):
                 cache_key = _parsed_product_cache_key('wildberries', article_code=product.article_code, url=product_url)
                 parsed = cache.get(cache_key)
                 if not parsed:
-                    parsed = parser.parse(product_url, timeout=25)
+                    parsed = parser.parse(
+                        product_url,
+                        timeout=effective_timeout,
+                        retries=effective_retries,
+                    )
                     if parsed:
                         cache.set(cache_key, parsed, timeout=PARSED_PRODUCT_CACHE_TTL)
                 if not parsed:
@@ -1107,21 +1219,22 @@ def enrich_wb_products_batch(self, article_codes, import_run_id=None):
                     f"Не удалось обогатить товар {product.article_code}: {enrich_error}"
                 )
 
-            self.update_state(
-                state='STARTED',
-                meta={
-                    'success': True,
-                    'stage': 'enrich',
-                    'phase': 'selenium',
-                    'processed': index,
-                    'total': selenium_total,
-                    'updated': updated_count,
-                    'api_enriched': 0,
-                    'selenium_enriched': selenium_enriched_count,
-                    'failed': failed_count,
-                    'message': f'Selenium: {index}/{selenium_total}'
-                }
-            )
+            if _should_publish_progress(index, selenium_total):
+                self.update_state(
+                    state='STARTED',
+                    meta={
+                        'success': True,
+                        'stage': 'enrich',
+                        'phase': 'selenium',
+                        'processed': index,
+                        'total': selenium_total,
+                        'updated': updated_count,
+                        'api_enriched': 0,
+                        'selenium_enriched': selenium_enriched_count,
+                        'failed': failed_count,
+                        'message': f'Selenium: {index}/{selenium_total}'
+                    }
+                )
 
     enrich_selenium_ms = int((time.perf_counter() - selenium_phase_start_ts) * 1000)
     total_enrich_ms = int((time.perf_counter() - enrich_start_ts) * 1000)
@@ -1161,4 +1274,64 @@ def enrich_wb_products_batch(self, article_codes, import_run_id=None):
             f'(Selenium: {selenium_enriched_count}), '
             f'Ошибок: {failed_count}'
         )
+    }
+
+
+@shared_task
+def dispatch_nightly_wb_recovery():
+    """
+    Ночной добор недообогащённых WB товаров малыми пачками.
+
+    Подбирает активные товары без цены/картинки и ставит фоновый batch-enrich.
+    """
+    cutoff = timezone.now() - timedelta(hours=WB_NIGHTLY_RECOVERY_COOLDOWN_HOURS)
+    candidates = (
+        Product.objects.filter(
+            marketplace='wildberries',
+            wishlist_items__is_active=True,
+        )
+        .filter(
+            Q(price__isnull=True) |
+            Q(image_url__isnull=True) |
+            Q(image_url='')
+        )
+        .filter(
+            Q(last_price_check__isnull=True) |
+            Q(last_price_check__lte=cutoff)
+        )
+        .distinct()
+        .order_by('last_price_check', '-last_updated')
+    )
+
+    article_codes = list(
+        candidates.values_list('article_code', flat=True)[:WB_NIGHTLY_RECOVERY_BATCH_SIZE]
+    )
+
+    if not article_codes:
+        logger.info("Ночной добор WB: нет кандидатов")
+        return {
+            'success': True,
+            'scheduled': 0,
+            'message': 'Нет товаров для ночного добора',
+        }
+
+    task = enrich_wb_products_batch.delay(
+        article_codes,
+        None,
+        WB_NIGHTLY_RECOVERY_RETRIES,
+        WB_NIGHTLY_RECOVERY_TIMEOUT,
+    )
+    logger.info(
+        "Ночной добор WB: запущен batch task=%s, товаров=%s, retries=%s, timeout=%s",
+        task.id,
+        len(article_codes),
+        WB_NIGHTLY_RECOVERY_RETRIES,
+        WB_NIGHTLY_RECOVERY_TIMEOUT,
+    )
+    return {
+        'success': True,
+        'scheduled': len(article_codes),
+        'task_id': task.id,
+        'retries': WB_NIGHTLY_RECOVERY_RETRIES,
+        'timeout': WB_NIGHTLY_RECOVERY_TIMEOUT,
     }

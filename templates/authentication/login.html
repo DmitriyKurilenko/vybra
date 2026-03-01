@@ -239,6 +239,7 @@
                     try {
                         const response = await fetch('/api/auth/login', {
                             method: 'POST',
+                            credentials: 'same-origin',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
@@ -251,11 +252,7 @@
                         const data = await response.json();
 
                         if (response.ok) {
-                            // Save tokens to localStorage
-                            localStorage.setItem('access_token', data.access_token);
-                            localStorage.setItem('refresh_token', data.refresh_token);
-
-                            // Redirect to dashboard
+                            // Redirect to dashboard (токены уже в HttpOnly cookie)
                             window.location.href = '/dashboard/';
                         } else {
                             this.error = data.error || 'Неверный email или пароль';

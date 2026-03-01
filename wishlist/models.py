@@ -82,7 +82,23 @@ class Item(models.Model):
     def __str__(self):
         return f"{self.product.name} ({self.elo_rating})"
     
-    def calculate_elo_change(self, opponent_rating, won):
+    @staticmethod
+    def _k_factor(comparisons_count: int) -> int:
+        """Выбор K-фактора по числу сравнений."""
+        if comparisons_count < 5:
+            return 64
+        if comparisons_count < 20:
+            return 32
+        return 16
+
+    def calculate_elo_change(
+        self,
+        opponent_rating,
+        won,
+        *,
+        current_rating=None,
+        comparisons_count=None,
+    ):
         """
         Рассчитать изменение ELO рейтинга с адаптивным K-фактором
 
@@ -91,15 +107,10 @@ class Item(models.Model):
         - 5-19 сравнений: K=32 (средняя скорость изменения)
         - >= 20 сравнений: K=16 (устоявшийся рейтинг)
         """
-        # Адаптивный K-фактор
-        if self.comparisons_count < 5:
-            K = 64  # Новые товары быстро находят свое место
-        elif self.comparisons_count < 20:
-            K = 32  # Средняя стабилизация
-        else:
-            K = 16  # Устоявшийся рейтинг меняется медленно
-
-        expected = 1 / (1 + 10 ** ((opponent_rating - self.elo_rating) / 400))
+        rating = self.elo_rating if current_rating is None else current_rating
+        comparisons = self.comparisons_count if comparisons_count is None else comparisons_count
+        K = self._k_factor(comparisons)
+        expected = 1 / (1 + 10 ** ((opponent_rating - rating) / 400))
         actual = 1 if won else 0
         return int(K * (actual - expected))
     

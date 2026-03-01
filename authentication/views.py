@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.urls import reverse
 from django.contrib.auth.models import User
 import os
@@ -7,7 +7,7 @@ import secrets
 import requests
 from urllib.parse import urlencode
 
-from .api import create_tokens, build_unique_username_from_email
+from .api import create_tokens, build_unique_username_from_email, normalize_email, set_auth_cookies
 
 
 def landing(request):
@@ -108,8 +108,9 @@ def google_login_callback(request):
     email_verified = userinfo.get('email_verified', False)
     if not email or not email_verified:
         return HttpResponse('Google email is not verified', status=403)
+    email = normalize_email(email)
 
-    user = User.objects.filter(email=email).first()
+    user = User.objects.filter(email__iexact=email).order_by('id').first()
     if not user:
         user = User.objects.create_user(
             username=build_unique_username_from_email(email),
@@ -121,28 +122,6 @@ def google_login_callback(request):
         user.save(update_fields=['password', 'first_name', 'last_name'])
 
     tokens = create_tokens(user)
-
-    # Токены передаются через JSON в data-атрибут — не через интерполяцию в JS (XSS-safe)
-    import json
-    tokens_json = json.dumps({
-        'access_token': tokens['access_token'],
-        'refresh_token': tokens['refresh_token'],
-    })
-
-    return HttpResponse(
-        f"""<!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><title>Авторизация...</title></head>
-<body>
-<script type="application/json" id="auth-tokens">{tokens_json}</script>
-<script>
-(function(){{
-  var data = JSON.parse(document.getElementById('auth-tokens').textContent);
-  localStorage.setItem('access_token', data.access_token);
-  localStorage.setItem('refresh_token', data.refresh_token);
-  window.location.replace('/dashboard/');
-}})();
-</script>
-</body></html>
-""",
-        content_type='text/html; charset=utf-8'
-    )
+    response = HttpResponseRedirect('/dashboard/')
+    set_auth_cookies(response, tokens, request=request)
+    return response

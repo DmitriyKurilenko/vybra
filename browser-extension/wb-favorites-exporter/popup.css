@@ -1,0 +1,111 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f5f6f8;
+  color: #1f2937;
+}
+
+.popup {
+  width: 360px;
+  padding: 12px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+button {
+  flex: 1;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #2563eb;
+  color: #fff;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.field {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.field span {
+  display: block;
+  font-size: 12px;
+  color: #4b5563;
+  margin-bottom: 4px;
+}
+
+.field input {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.status {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+#statusLine {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+#countLine {
+  color: #4b5563;
+}
+
+.preview {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+#previewArea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}

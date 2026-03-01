@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 from datetime import timedelta
+from celery.schedules import crontab
 
 # ─── Базовые пути ────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -148,6 +149,21 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(days=7),
     },
 }
+
+if os.environ.get('WB_NIGHTLY_RECOVERY_ENABLED', 'True').lower() in {'1', 'true', 'yes'}:
+    wb_nightly_cron_hour = os.environ.get('WB_NIGHTLY_RECOVERY_CRON_HOUR')
+    wb_nightly_cron_minute = os.environ.get('WB_NIGHTLY_RECOVERY_CRON_MINUTE')
+
+    # Backward compatibility: старые HOUR/MINUTE используются, если CRON_* не заданы.
+    if not wb_nightly_cron_hour:
+        wb_nightly_cron_hour = os.environ.get('WB_NIGHTLY_RECOVERY_HOUR', '0-6')
+    if not wb_nightly_cron_minute:
+        wb_nightly_cron_minute = os.environ.get('WB_NIGHTLY_RECOVERY_MINUTE', '*/20')
+
+    CELERY_BEAT_SCHEDULE['wb-nightly-recovery'] = {
+        'task': 'wishlist.tasks.dispatch_nightly_wb_recovery',
+        'schedule': crontab(hour=wb_nightly_cron_hour, minute=wb_nightly_cron_minute),
+    }
 
 # ─── JWT ─────────────────────────────────────────────────────────────────────
 # Отдельный обязательный ключ — не связан с SECRET_KEY для независимой ротации
