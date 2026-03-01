@@ -3,7 +3,6 @@ Django Ninja utilities - exceptions and authentication
 """
 import logging
 
-from ninja.security import HttpBearer
 from ninja.errors import HttpError
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -32,12 +31,27 @@ class NotFoundError(HttpError):
 
 
 # JWT Authentication
-class JWTAuth(HttpBearer):
+class JWTAuth:
     """
     JWT Bearer token authentication для Django Ninja
 
     Автоматически валидирует JWT токен и возвращает User объект
     """
+
+    def __call__(self, request):
+        token = None
+
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header and auth_header.lower().startswith('bearer '):
+            token = auth_header.split(' ', 1)[1].strip()
+
+        if not token:
+            token = request.COOKIES.get('vybra_access_token')
+
+        if not token:
+            return None
+
+        return self.authenticate(request, token)
 
     def authenticate(self, request, token: str):
         """

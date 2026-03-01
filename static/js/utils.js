@@ -5,6 +5,8 @@
 let __vybraPendingRequests = 0;
 let __vybraLoadingStartedAt = 0;
 const __vybraMinLoadingVisibleMs = 900;
+let __vybraRefreshPromise = null;
+const __vybraAuthMarkerCookie = 'vybra_logged_in=1';
 
 function setGlobalLoading(isLoading) {
     window.dispatchEvent(new CustomEvent('vybra:loading', {
@@ -41,14 +43,20 @@ window.endGlobalLoading = endGlobalLoading;
 
 /**
  * Get authentication headers for API requests
- * @returns {Object} Headers object with Authorization and Content-Type
+ * @returns {Object} Headers object
  */
-function getAuthHeaders() {
-    const token = localStorage.getItem('access_token');
+function getAuthHeaders(extraHeaders = {}) {
     return {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...extraHeaders,
     };
+}
+
+function hasAuthMarker() {
+    return document.cookie
+        .split(';')
+        .map((chunk) => chunk.trim())
+        .includes(__vybraAuthMarkerCookie);
 }
 
 /**
@@ -56,8 +64,7 @@ function getAuthHeaders() {
  * @returns {boolean} True if authenticated, false otherwise
  */
 function requireAuth() {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
+    if (!hasAuthMarker()) {
         window.location.href = '/login/';
         return false;
     }
@@ -68,9 +75,38 @@ function requireAuth() {
  * Handle 401 Unauthorized response by clearing tokens and redirecting
  */
 function handleUnauthorized() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: '{}',
+    }).catch(() => {});
+    document.cookie = 'vybra_logged_in=; Max-Age=0; Path=/; SameSite=Lax';
     window.location.href = '/login/';
+}
+
+async function refreshAccessToken() {
+    if (__vybraRefreshPromise) {
+        return __vybraRefreshPromise;
+    }
+
+    __vybraRefreshPromise = fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: '{}',
+    })
+        .then((response) => response.ok)
+        .catch(() => false)
+        .finally(() => {
+            __vybraRefreshPromise = null;
+        });
+
+    return __vybraRefreshPromise;
 }
 
 /**
@@ -81,23 +117,35 @@ function handleUnauthorized() {
  */
 async function authFetch(url, options = {}) {
     beginGlobalLoading();
-    let response;
     try {
-        response = await fetch(url, {
+        let response = await fetch(url, {
             ...options,
+            credentials: 'same-origin',
             headers: {
-                ...getAuthHeaders(),
-                ...(options.headers || {})
-            }
+                ...getAuthHeaders(options.headers || {}),
+            },
         });
+
+        if (response.status === 401) {
+            const refreshed = await refreshAccessToken();
+            if (refreshed) {
+                response = await fetch(url, {
+                    ...options,
+                    credentials: 'same-origin',
+                    headers: {
+                        ...getAuthHeaders(options.headers || {}),
+                    },
+                });
+            }
+        }
+
+        if (response.status === 401) {
+            handleUnauthorized();
+            throw new Error('Unauthorized');
+        }
+
+        return response;
     } finally {
         endGlobalLoading();
     }
-
-    if (response.status === 401) {
-        handleUnauthorized();
-        throw new Error('Unauthorized');
-    }
-
-    return response;
 }

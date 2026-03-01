@@ -67,6 +67,13 @@ services:
       - DB_PASSWORD=postgres
       - REDIS_URL=redis://redis:6379/0
       - SELENIUM_REMOTE_URL=http://selenium:4444/wd/hub
+      - WB_NIGHTLY_RECOVERY_BATCH_SIZE=20
+      - WB_NIGHTLY_RECOVERY_RETRIES=3
+      - WB_NIGHTLY_RECOVERY_TIMEOUT=35
+      - WB_NIGHTLY_RECOVERY_COOLDOWN_HOURS=20
+      - WB_NIGHTLY_RECOVERY_ENABLED=true
+      - WB_NIGHTLY_RECOVERY_CRON_HOUR=0-6
+      - WB_NIGHTLY_RECOVERY_CRON_MINUTE=*/20
     volumes:
       - media_data:/app/media
     depends_on:
@@ -93,7 +100,7 @@ services:
 
   celery-beat:
     build: .
-    command: celery -A vybra beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    command: celery -A vybra beat -l info -s /tmp/celerybeat-schedule
     environment:
       - DEBUG=False
       - ALLOWED_HOSTS=localhost
@@ -105,6 +112,9 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - REDIS_URL=redis://redis:6379/0
+      - WB_NIGHTLY_RECOVERY_ENABLED=true
+      - WB_NIGHTLY_RECOVERY_CRON_HOUR=0-6
+      - WB_NIGHTLY_RECOVERY_CRON_MINUTE=*/20
     depends_on:
       db:
         condition: service_healthy

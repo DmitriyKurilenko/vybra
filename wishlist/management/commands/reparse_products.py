@@ -63,56 +63,58 @@ class Command(BaseCommand):
         success_count = 0
         error_count = 0
 
-        for i, product in enumerate(products_to_reparse, 1):
-            try:
-                self.stdout.write(f'[{i}/{len(products_to_reparse)}] Парсинг: {product.name}...')
+        from wishlist.selenium_parser import SeleniumWildberriesParser
 
-                # Формируем URL товара
-                url = None
-                if product.url:
-                    url = product.url
-                elif product.marketplace == 'wildberries' and product.article_code:
-                    url = f'https://www.wildberries.ru/catalog/{product.article_code}/detail.aspx'
+        with SeleniumWildberriesParser(headless=True) as wb_parser:
+            for i, product in enumerate(products_to_reparse, 1):
+                try:
+                    self.stdout.write(f'[{i}/{len(products_to_reparse)}] Парсинг: {product.name}...')
 
-                if not url:
-                    self.stdout.write(self.style.ERROR(f'  ❌ Нет URL для товара {product.id}'))
+                    # Формируем URL товара
+                    url = None
+                    if product.url:
+                        url = product.url
+                    elif product.marketplace == 'wildberries' and product.article_code:
+                        url = f'https://www.wildberries.ru/catalog/{product.article_code}/detail.aspx'
+
+                    if not url:
+                        self.stdout.write(self.style.ERROR(f'  ❌ Нет URL для товара {product.id}'))
+                        error_count += 1
+                        continue
+
+                    # Парсим товар в единой Selenium-сессии
+                    if product.marketplace == 'wildberries':
+                        result = wb_parser.parse(url, timeout=25, retries=1)
+                    else:
+                        self.stdout.write(self.style.WARNING(f'  ⚠️  Пропускаю {product.marketplace}'))
+                        continue
+
+                    if not result or not result.get('name'):
+                        self.stdout.write(self.style.ERROR(f'  ❌ Не удалось получить название'))
+                        error_count += 1
+                        continue
+
+                    # Обновляем название
+                    old_name = product.name
+                    product.name = result['name']
+
+                    # Обновляем другие данные если они есть
+                    if result.get('price'):
+                        product.price = result['price']
+                    if result.get('image_url'):
+                        product.image_url = result['image_url']
+
+                    product.save()
+
+                    self.stdout.write(
+                        self.style.SUCCESS(f'  ✅ {old_name} → {product.name[:50]}...')
+                    )
+                    success_count += 1
+
+                except Exception as e:
+                    self.stdout.write(self.style.ERROR(f'  ❌ Ошибка: {e}'))
+                    logger.error(f'Ошибка перепарсинга товара {product.id}: {e}', exc_info=True)
                     error_count += 1
-                    continue
-
-                # Парсим товар
-                if product.marketplace == 'wildberries':
-                    from wishlist.selenium_parser import parse_with_selenium
-                    result = parse_with_selenium(url, headless=True)
-                else:
-                    self.stdout.write(self.style.WARNING(f'  ⚠️  Пропускаю {product.marketplace}'))
-                    continue
-
-                if not result or not result.get('name'):
-                    self.stdout.write(self.style.ERROR(f'  ❌ Не удалось получить название'))
-                    error_count += 1
-                    continue
-
-                # Обновляем название
-                old_name = product.name
-                product.name = result['name']
-
-                # Обновляем другие данные если они есть
-                if result.get('price'):
-                    product.price = result['price']
-                if result.get('image_url'):
-                    product.image_url = result['image_url']
-
-                product.save()
-
-                self.stdout.write(
-                    self.style.SUCCESS(f'  ✅ {old_name} → {product.name[:50]}...')
-                )
-                success_count += 1
-
-            except Exception as e:
-                self.stdout.write(self.style.ERROR(f'  ❌ Ошибка: {e}'))
-                logger.error(f'Ошибка перепарсинга товара {product.id}: {e}', exc_info=True)
-                error_count += 1
 
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS(f'✅ Успешно обновлено: {success_count}'))

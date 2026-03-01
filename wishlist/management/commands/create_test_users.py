@@ -3,13 +3,45 @@ Management command для создания тестовых пользовате
 """
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
+from django.db.models import Q
 from decimal import Decimal
 from wishlist.models import Product, Item
 import random
 
 
 class Command(BaseCommand):
-    help = 'Создает тестовых пользователей, админа и тестовые данные'
+    help = 'Создает/обновляет тестовых пользователей, админа и тестовые данные'
+
+    TEST_ACCOUNTS = [
+        {
+            'username': 'admin',
+            'email': 'admin@prvms.ru',
+            'password': 'test123',
+            'is_staff': True,
+            'is_superuser': True,
+        },
+        {
+            'username': 'demo',
+            'email': 'demo@prvms.ru',
+            'password': 'test123',
+            'is_staff': False,
+            'is_superuser': False,
+        },
+        {
+            'username': 'test1',
+            'email': 'test1@prvms.ru',
+            'password': 'test123',
+            'is_staff': False,
+            'is_superuser': False,
+        },
+        {
+            'username': 'test2',
+            'email': 'test2@prvms.ru',
+            'password': 'test123',
+            'is_staff': False,
+            'is_superuser': False,
+        },
+    ]
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -17,60 +49,86 @@ class Command(BaseCommand):
             action='store_true',
             help='Не создавать тестовые товары для пользователей',
         )
+        parser.add_argument(
+            '--overwrite',
+            action='store_true',
+            help='Перезаписать существующих пользователей (email/username/пароль/права)',
+        )
+
+    def _find_user(self, email: str, username: str):
+        matches = list(
+            User.objects.filter(
+                Q(email__iexact=email) | Q(username=username)
+            ).order_by('id')
+        )
+        if not matches:
+            return None
+        exact_email = next((user for user in matches if (user.email or '').lower() == email.lower()), None)
+        return exact_email or matches[0]
+
+    def _create_or_update_account(self, account: dict, overwrite: bool):
+        username = account['username']
+        email = account['email'].strip().lower()
+        password = account['password']
+        is_staff = bool(account.get('is_staff', False))
+        is_superuser = bool(account.get('is_superuser', False))
+
+        user = self._find_user(email=email, username=username)
+        if user is None:
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+            )
+            user.is_staff = is_staff
+            user.is_superuser = is_superuser
+            user.is_active = True
+            user.save()
+            return user, 'created'
+
+        if not overwrite:
+            return user, 'skipped'
+
+        user.username = username
+        user.email = email
+        user.is_staff = is_staff
+        user.is_superuser = is_superuser
+        user.is_active = True
+        user.set_password(password)
+        user.save()
+        return user, 'updated'
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS('Создание тестовых пользователей...'))
-
-        # Создать админа
-        admin_email = 'admin@vybra.com'
-        if not User.objects.filter(email=admin_email).exists():
-            admin = User.objects.create_superuser(
-                username='admin',
-                email=admin_email,
-                password='admin123'
-            )
-            self.stdout.write(self.style.SUCCESS(f'✅ Создан админ: {admin.email} / admin123'))
-        else:
-            self.stdout.write(self.style.WARNING(f'⚠️  Админ уже существует: {admin_email}'))
-
-        # Создать тестовых пользователей
-        test_users = [
-            {'username': 'demo', 'email': 'demo@vybra.com', 'password': 'demo123'},
-            {'username': 'test1', 'email': 'test1@vybra.com', 'password': 'test123'},
-            {'username': 'test2', 'email': 'test2@vybra.com', 'password': 'test123'},
-        ]
+        overwrite = bool(options.get('overwrite'))
+        mode_label = 'с перезаписью' if overwrite else 'без перезаписи'
+        self.stdout.write(self.style.SUCCESS(f'Создание тестовых пользователей ({mode_label})...'))
 
         created_users = []
-        for user_data in test_users:
-            # Проверяем и по email, и по username
-            if not User.objects.filter(email=user_data['email']).exists() and \
-               not User.objects.filter(username=user_data['username']).exists():
-                user = User.objects.create_user(
-                    username=user_data['username'],
-                    email=user_data['email'],
-                    password=user_data['password']
-                )
-                created_users.append(user)
+        for account in self.TEST_ACCOUNTS:
+            user, status = self._create_or_update_account(account, overwrite=overwrite)
+            created_users.append(user)
+
+            if status == 'created':
                 self.stdout.write(
-                    self.style.SUCCESS(
-                        f'✅ Создан пользователь: {user.email} / {user_data["password"]}'
-                    )
+                    self.style.SUCCESS(f'✅ Создан пользователь: {account["email"]}')
+                )
+            elif status == 'updated':
+                self.stdout.write(
+                    self.style.SUCCESS(f'♻️  Обновлен пользователь: {account["email"]}')
                 )
             else:
                 self.stdout.write(
-                    self.style.WARNING(f'⚠️  Пользователь уже существует: {user_data["email"]}')
+                    self.style.WARNING(
+                        f'⚠️  Пользователь уже существует: {account["email"]} '
+                        '(используйте --overwrite для перезаписи)'
+                    )
                 )
-                # Пытаемся получить по email, если не найден - по username
-                try:
-                    user = User.objects.get(email=user_data['email'])
-                except User.DoesNotExist:
-                    user = User.objects.get(username=user_data['username'])
-                created_users.append(user)
 
         # Создать тестовые товары для demo пользователя
         if not options['skip_products'] and created_users:
+            demo_email = next(acc['email'] for acc in self.TEST_ACCOUNTS if acc['username'] == 'demo')
             try:
-                demo_user = User.objects.get(email='demo@vybra.com')
+                demo_user = User.objects.get(email__iexact=demo_email)
             except User.DoesNotExist:
                 # Если demo пользователь не найден, используем первого из созданных
                 demo_user = created_users[0] if created_users else None
@@ -197,12 +255,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('\n' + '='*60))
         self.stdout.write(self.style.SUCCESS('✅ Тестовые данные успешно созданы!'))
         self.stdout.write(self.style.SUCCESS('='*60))
-        self.stdout.write('\nДоступные учетные записи:')
-        self.stdout.write(self.style.WARNING('Админ:'))
-        self.stdout.write('  Email: admin@vybra.com')
-        self.stdout.write('  Пароль: admin123')
-        self.stdout.write(self.style.WARNING('\nТестовые пользователи:'))
-        self.stdout.write('  Email: demo@vybra.com   | Пароль: demo123')
-        self.stdout.write('  Email: test1@vybra.com  | Пароль: test123')
-        self.stdout.write('  Email: test2@vybra.com  | Пароль: test123')
+        self.stdout.write(self.style.WARNING('\nДоступные учетные записи:'))
+        for account in self.TEST_ACCOUNTS:
+            role = 'Админ' if account.get('is_superuser') else 'Польз.'
+            self.stdout.write(
+                f'  {role}: {account["email"]:<20} | Пароль: {account["password"]}'
+            )
         self.stdout.write('\n' + '='*60 + '\n')

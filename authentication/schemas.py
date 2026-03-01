@@ -17,8 +17,9 @@ class LoginSchema(Schema):
 
 
 class TokenSchema(Schema):
-    access_token: str
-    refresh_token: str
+    success: bool = True
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
 
 
@@ -29,4 +30,9 @@ class UserSchema(Schema):
 
 
 class RefreshTokenSchema(Schema):
-    refresh_token: str
+    refresh_token: Optional[str] = None
+
+
+class AuthMessageSchema(Schema):
+    success: bool
+    message: str

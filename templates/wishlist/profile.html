@@ -82,7 +82,7 @@
                 </svg>
                 <span>Удалить все товары</span>
             </button>
-            
+
             <button @click="logout()" class="btn btn-neutral btn-sm w-full min-h-[44px]">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H9m4 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -195,9 +195,18 @@ function profile() {
             }
         },
 
-        logout() {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
+        async logout() {
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}',
+                });
+            } catch (error) {
+                console.error('Error during logout:', error);
+            }
+            document.cookie = 'vybra_logged_in=; Max-Age=0; Path=/; SameSite=Lax';
             window.location.href = '/login/';
         },
 

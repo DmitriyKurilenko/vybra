@@ -4,6 +4,7 @@
 """
 import requests
 import re
+import os
 from decimal import Decimal, InvalidOperation
 from typing import Optional, Dict
 import logging
@@ -37,10 +38,30 @@ class WildberriesParser(MarketplaceParser):
 
     def __init__(self):
         super().__init__()
+        self._selenium_parser = None
+        self._selenium_timeout = max(5, int(os.environ.get('WB_SELENIUM_FALLBACK_TIMEOUT', '20')))
+        self._selenium_retries = max(1, int(os.environ.get('WB_SELENIUM_FALLBACK_RETRIES', '1')))
         self.session.headers.update({
             'Origin': 'https://www.wildberries.ru',
             'Referer': 'https://www.wildberries.ru/',
         })
+
+    def _get_selenium_parser(self):
+        if self._selenium_parser is None:
+            from .selenium_parser import SeleniumWildberriesParser
+            self._selenium_parser = SeleniumWildberriesParser(headless=True)
+        return self._selenium_parser
+
+    def close(self):
+        if self._selenium_parser:
+            try:
+                self._selenium_parser.close()
+            except Exception:
+                pass
+            self._selenium_parser = None
+
+    def __del__(self):
+        self.close()
 
     def extract_product_id(self, url: str) -> Optional[str]:
         """Извлечь ID товара из URL"""
@@ -127,8 +148,11 @@ class WildberriesParser(MarketplaceParser):
         # Fallback: Пробуем Selenium если API не работает
         logger.info(f"Trying Selenium parser as fallback for {product_id}")
         try:
-            from .selenium_parser import parse_with_selenium
-            result = parse_with_selenium(url, headless=True)
+            result = self._get_selenium_parser().parse(
+                url,
+                timeout=self._selenium_timeout,
+                retries=self._selenium_retries,
+            )
             if result:
                 logger.info(f"Successfully parsed WB product {product_id} via Selenium")
                 return result

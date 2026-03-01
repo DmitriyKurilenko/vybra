@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WB Favorites Exporter</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <h1>WB Favorites Exporter</h1>
+      <p class="hint">
+        Open <code>wildberries.ru/lk/favorites</code>, then collect items and paste output into
+        Vybra bulk import.
+      </p>
+
+      <div class="row">
+        <button id="collectVisibleBtn" type="button">Collect Visible</button>
+        <button id="collectAutoBtn" type="button">Auto-scroll Collect</button>
+      </div>
+
+      <label class="field">
+        <span>Max items</span>
+        <input id="maxItemsInput" type="number" min="1" max="2000" value="400" />
+      </label>
+
+      <div class="row">
+        <button id="copyVybraBtn" type="button" disabled>Copy for Vybra</button>
+        <button id="downloadTxtBtn" type="button" disabled>Download TXT</button>
+      </div>
+
+      <div class="row">
+        <button id="downloadJsonBtn" type="button" disabled>Download JSON</button>
+      </div>
+
+      <section class="status">
+        <div id="statusLine">Idle</div>
+        <div id="countLine"></div>
+      </section>
+
+      <section class="preview">
+        <h2>Preview</h2>
+        <textarea id="previewArea" readonly></textarea>
+      </section>
+    </main>
+
+    <script src="./popup.js"></script>
+  </body>
+  </html>

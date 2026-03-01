@@ -256,6 +256,18 @@ docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod
 - `restart: unless-stopped`
 - `healthcheck` для зависимостей
 - ротацию логов Docker (`max-size`, `max-file`)
+- тюнинг WB/Celery под low-resource (batch retries/timeouts, prefetch=1)
+- ночной добор WB-товаров без цены/картинки малыми пачками (`wb-nightly-recovery`)
+
+Целевой бюджет в override:
+- CPU: суммарно `~1.0` vCPU на все контейнеры
+- RAM: лимиты контейнеров `~776 MB` (с запасом под системные расходы)
+
+Параметры ночного добора (env):
+- `WB_NIGHTLY_RECOVERY_ENABLED=true|false`
+- `WB_NIGHTLY_RECOVERY_CRON_HOUR=0-6`, `WB_NIGHTLY_RECOVERY_CRON_MINUTE=*/20` (по умолчанию каждые 20 минут ночью)
+- `WB_NIGHTLY_RECOVERY_BATCH_SIZE=20`
+- `WB_NIGHTLY_RECOVERY_RETRIES=3`, `WB_NIGHTLY_RECOVERY_TIMEOUT=35`
 
 Остановка:
 
@@ -303,6 +315,14 @@ python manage.py collectstatic --noinput
 ENV_FILE=.env.prod ./deploy.sh
 ENV_FILE=.env.prod ./letsencrypt-renew.sh
 ```
+
+## Browser Extension (WB Favorites)
+
+An unpacked Chrome extension scaffold is included:
+
+- Path: `browser-extension/wb-favorites-exporter`
+- Install instructions: [browser-extension/wb-favorites-exporter/README.md](browser-extension/wb-favorites-exporter/README.md)
+- Status: scaffold only; currently not used in production flow
 
 ### HTTPS-only setup (один раз, без повторов)
 

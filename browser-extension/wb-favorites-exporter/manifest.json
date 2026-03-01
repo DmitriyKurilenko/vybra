@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "WB Favorites Exporter for Vybra",
+  "version": "0.1.0",
+  "description": "Collect Wildberries favorites and copy in a format ready for Vybra bulk import.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*.wildberries.ru/*"
+  ],
+  "action": {
+    "default_title": "WB Favorites Exporter",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.wildberries.ru/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
