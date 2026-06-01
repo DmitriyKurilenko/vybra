@@ -77,3 +77,23 @@
 ### Risks
 - Existing deployments that relied on `celery`/`selenium` being in `docker-compose.prod.yml` will no longer start those services unless `--with-parsing` is passed. This is intentional but is a behavioral change.
 - `web` now has 512m RAM; verify host has enough memory for the full stack when parsing is enabled.
+
+---
+
+## 2026-06-02 (session 4)
+
+### Files changed
+- `docker-compose.prod.yml`
+  - Added internal `backend` network (bridge)
+  - Connected `db`, `redis`, `web` to `backend`
+  - `web` remains connected to `traefik` (external)
+- `docker-compose.parsing.yml`
+  - Connected `celery`, `selenium`, `celery-beat` to `backend`
+  - Declared `backend` network in file (required for overlay compatibility)
+
+### Validation
+- `docker compose -f docker-compose.prod.yml --env-file .env.example config` passed
+- `docker compose -f docker-compose.prod.yml -f docker-compose.parsing.yml --env-file .env.example config` passed
+
+### Risks
+- None. All services now share the same internal `backend` network and can resolve each other by service name.

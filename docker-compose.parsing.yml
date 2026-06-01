@@ -49,6 +49,8 @@ services:
         condition: service_healthy
       selenium:
         condition: service_healthy
+    networks:
+      - backend
     mem_limit: 256m
     cpus: 0.18
     logging:
@@ -73,6 +75,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+    networks:
+      - backend
     mem_limit: 384m
     cpus: 0.35
     logging:
@@ -108,6 +112,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - backend
     mem_limit: 128m
     cpus: 0.05
     logging:
@@ -116,5 +122,6 @@ services:
         max-size: "5m"
         max-file: "2"
 
-volumes:
-  media_data:
+networks:
+  backend:
+    driver: bridge

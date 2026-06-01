@@ -17,6 +17,8 @@ services:
       start_period: 20s
     mem_limit: 96m
     cpus: 0.15
+    networks:
+      - backend
     logging:
       driver: json-file
       options:
@@ -35,6 +37,8 @@ services:
       start_period: 10s
     mem_limit: 40m
     cpus: 0.05
+    networks:
+      - backend
     logging:
       driver: json-file
       options:
@@ -94,11 +98,6 @@ services:
       start_period: 30s
     mem_limit: 512m
     cpus: 0.22
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
@@ -107,12 +106,20 @@ services:
       - "traefik.http.routers.vybra-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.vybra-web.loadbalancer.server.port=8000"
     networks:
+      - backend
       - traefik
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 volumes:
   media_data:
   postgres_data:
 
 networks:
+  backend:
+    driver: bridge
   traefik:
     external: true
