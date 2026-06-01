@@ -7,6 +7,8 @@ services:
       POSTGRES_DB: ${DB_NAME:-vybra}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vybra}"]
       interval: 15s
@@ -42,6 +44,7 @@ services:
   web:
     restart: unless-stopped
     init: true
+    build: .
     image: vybra-web:latest
     # migrate вынесен в команду web — для single-replica деплоя это безопасно.
     # При горизонтальном масштабировании используйте отдельный init-контейнер.
@@ -225,6 +228,7 @@ services:
 
 volumes:
   media_data:
+  postgres_data:
 
 networks:
   traefik:

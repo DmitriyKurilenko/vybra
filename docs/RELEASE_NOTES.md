@@ -1,5 +1,20 @@
 # Release Notes
 
+## v0.2.1 — Compose Fixes
+
+**Infrastructure fixes only. No breaking changes.**
+
+### What changed
+- `docker-compose.prod.yml` now correctly declares `image` for `db` (`postgres:17`) and `redis` (`redis:7-alpine`).
+- `web` service has both `build: .` and `image: vybra-web:latest`, so `docker compose build` works and `celery-beat` reuses the built image.
+- Added named Docker volume `postgres_data` for the database. Data now survives `docker compose down`.
+- Aligned development compose (`docker-compose.yml`) to use `postgres:17`.
+- Added `*.ini` to `.gitignore` to prevent accidental commits of config files containing secrets.
+
+### Action required for operators
+- Run `./deploy.sh --skip-build` first to bring up the new volume mapping safely, then run `./deploy.sh` normally on the next deploy.
+- If you previously ran `docker-compose.prod.yml` without a named `postgres_data` volume, your old data is in an anonymous volume. Migrate it manually if needed before destroying the old container.
+
 ## v0.2.0 — Shared Traefik Integration
 
 **Deployment change required.**

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-06-01
+
+### Fixed
+- `docker-compose.prod.yml`: missing `image` tags for `db` (`postgres:17`) and `redis` (`redis:7-alpine`)
+- `docker-compose.prod.yml`: missing `build: .` for `web` service, preventing image build for reuse by `celery-beat`
+- `docker-compose.prod.yml`: missing named volume `postgres_data` for `db`, causing data loss on `down`
+- `docker-compose.yml`: aligned `postgres` version with prod (`postgres:15` → `postgres:17`)
+- `.gitignore`: added `*.ini` to prevent accidental commits of config files containing secrets
+
 ## [0.2.0] - 2026-06-01
 
 ### Added

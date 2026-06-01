@@ -17,5 +17,20 @@
 **Cause:** `collectstatic` was not run on container startup; static files were only built into the image but not collected to the shared volume
 **Fix:** Added `python manage.py collectstatic --noinput` to the `web` startup command
 
+### Missing image and build context in production compose
+**Symptom:** `docker compose build` skipped `web`; `docker compose up` tried to pull non-existent image
+**Cause:** `docker-compose.prod.yml` had only `image: vybra-web:latest` without `build: .`
+**Fix:** Added `build: .` to `web` service so `docker compose build` produces the image locally
+
+### Missing named volume for PostgreSQL
+**Symptom:** Database data lost after `docker compose down`
+**Cause:** `docker-compose.prod.yml` did not declare a named volume for `db`
+**Fix:** Added `postgres_data:/var/lib/postgresql/data` to `db` service and declared `postgres_data` volume
+
+### Secret leakage via `.ini` file
+**Symptom:** GitHub push protection blocked push due to Google OAuth credentials
+**Cause:** `vybra/Untitled-2.ini` contained secrets and was committed to repository
+**Fix:** Removed file from repository and history; added `*.ini` to `.gitignore`
+
 ## Open
 - None
