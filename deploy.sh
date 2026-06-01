@@ -61,6 +61,15 @@ done
 
 docker info >/dev/null 2>&1 || die "Docker не доступен"
 
+if [[ "$(sysctl -n vm.overcommit_memory 2>/dev/null || echo 0)" != "1" ]]; then
+  if [[ "$EUID" -eq 0 ]]; then
+    sysctl -w vm.overcommit_memory=1 >/dev/null
+    log "vm.overcommit_memory=1 установлен"
+  else
+    die "vm.overcommit_memory != 1 — Redis может падать. Запусти от root: sudo sysctl vm.overcommit_memory=1"
+  fi
+fi
+
 docker network ls --format '{{.Name}}' | grep -q "^traefik$" || die "Сеть traefik не найдена"
 docker ps --format '{{.Names}}' | grep -q "^traefik$" || die "Контейнер traefik не запущен"
 
