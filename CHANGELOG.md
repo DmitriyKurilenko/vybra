@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-06-02
+
+### Added
+- `docker-compose.parsing.yml` — optional overlay for celery worker, celery-beat, and selenium
+- `deploy.sh --with-parsing` flag to start/stop parsing services alongside core stack
+- Inline documentation and `--help` to `deploy.sh`
+
+### Fixed
+- `docker-compose.prod.yml`: removed `celery`, `celery-beat`, and `selenium` from default stack; they now start only when explicitly requested
+- `docker-compose.prod.yml`: bumped `web` memory limit from `128m` to `512m` to prevent OOM kills
+- `docker-compose.prod.yml`: removed redundant `collectstatic` from startup command (already handled in Dockerfile)
+- `docker-compose.yml` (dev): removed `celery`, `celery-beat`, and `selenium` from default dev stack
+
 ## [0.2.1] - 2026-06-01
 
 ### Fixed

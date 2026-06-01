@@ -1,5 +1,21 @@
 # Release Notes
 
+## v0.2.2 — Parsing Services as Optional Overlay
+
+**Behavioral change for operators running parsing tasks.**
+
+### What changed
+- `celery`, `celery-beat`, and `selenium` are no longer part of the default production stack. They live in a new `docker-compose.parsing.yml` overlay.
+- `deploy.sh` now accepts `--with-parsing` to start the full stack including parsing services.
+- `deploy.sh` now has `--help` and inline documentation.
+- `web` memory limit increased from `128m` to `512m` to prevent OOM kills.
+- Redundant `collectstatic` removed from `web` startup command (already runs during image build).
+
+### Action required for operators
+- **Normal deploy:** `./deploy.sh` (unchanged)
+- **Deploy with parsing:** `./deploy.sh --with-parsing`
+- If you are currently running `celery`/`selenium` from a previous deploy, stop them manually (`docker compose -f docker-compose.parsing.yml down`) or simply redeploy with the new flag.
+
 ## v0.2.1 — Compose Fixes
 
 **Infrastructure fixes only. No breaking changes.**

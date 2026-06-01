@@ -49,3 +49,31 @@
 ### Risks
 - `postgres_data` volume is now named and persistent; if an anonymous volume existed before, the old data is orphaned and must be migrated manually if needed
 - `docker compose build` now builds `web` image locally; `celery-beat` reuses it correctly
+
+---
+
+## 2026-06-02 (session 3)
+
+### Files changed
+- `docker-compose.prod.yml`
+  - Removed `celery`, `celery-beat`, and `selenium` services
+  - Removed `collectstatic` from `web` startup command
+  - Bumped `web` `mem_limit` from `128m` to `512m`
+- `docker-compose.yml`
+  - Removed `celery`, `celery-beat`, and `selenium` services
+- `docker-compose.parsing.yml` (new)
+  - Extracted `celery`, `celery-beat`, and `selenium` from prod compose
+- `deploy.sh`
+  - Added `--with-parsing` flag to overlay `docker-compose.parsing.yml`
+  - Added `--help` / `-h` flag
+  - Added inline documentation (header comment + `_usage` function)
+
+### Validation
+- `bash -n deploy.sh` passed
+- `docker compose -f docker-compose.prod.yml --env-file .env.example config` passed
+- `docker compose -f docker-compose.parsing.yml --env-file .env.example config` passed
+- `docker compose -f docker-compose.prod.yml -f docker-compose.parsing.yml --env-file .env.example config` passed
+
+### Risks
+- Existing deployments that relied on `celery`/`selenium` being in `docker-compose.prod.yml` will no longer start those services unless `--with-parsing` is passed. This is intentional but is a behavioral change.
+- `web` now has 512m RAM; verify host has enough memory for the full stack when parsing is enabled.

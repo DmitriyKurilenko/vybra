@@ -34,3 +34,19 @@ Always declare a named Docker volume `postgres_data` in `docker-compose.prod.yml
 ### Consequences
 - Database survives container recreation
 - Volume must be explicitly managed if migration or wipe is needed
+
+## DEC-003: Parsing services as optional overlay
+
+**Date:** 2026-06-02
+**Status:** Accepted
+
+### Context
+`celery`, `celery-beat`, and `selenium` were included in `docker-compose.prod.yml` by default, consuming RAM and CPU even when no parsing tasks were active. This caused unnecessary resource pressure and OOM kills on small VPS instances.
+
+### Decision
+Extract parsing-related services into a separate `docker-compose.parsing.yml` overlay file. Core production (`docker-compose.prod.yml`) runs only `db`, `redis`, and `web`. Parsing is started only when explicitly requested via `deploy.sh --with-parsing` or by manually overlaying `docker-compose.parsing.yml`.
+
+### Consequences
+- Reduced baseline resource usage in production
+- `deploy.sh` must support multiple compose files when `--with-parsing` is passed
+- Operators must explicitly opt-in to run selenium and background workers

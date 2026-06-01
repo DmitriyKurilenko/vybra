@@ -32,5 +32,10 @@
 **Cause:** `vybra/Untitled-2.ini` contained secrets and was committed to repository
 **Fix:** Removed file from repository and history; added `*.ini` to `.gitignore`
 
+### OOM kills on `web` container
+**Symptom:** `web` container repeatedly killed during startup
+**Cause:** `mem_limit: 128m` was too low for Django + Gunicorn; redundant `collectstatic` on startup also spiked memory usage
+**Fix:** Bumped `web` `mem_limit` to `512m`; removed `collectstatic` from startup command (already handled in Dockerfile)
+
 ## Open
 - None
