@@ -40,9 +40,10 @@ services:
   web:
     restart: unless-stopped
     init: true
+    image: vybra-web:latest
     # migrate вынесен в команду web — для single-replica деплоя это безопасно.
     # При горизонтальном масштабировании используйте отдельный init-контейнер.
-    command: sh -c "python manage.py migrate --noinput && gunicorn vybra.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 120 --keep-alive 5 --max-requests 250 --max-requests-jitter 25 --access-logfile - --error-logfile -"
+    command: sh -c "python manage.py collectstatic --noinput && python manage.py migrate --noinput && gunicorn vybra.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 120 --keep-alive 5 --max-requests 250 --max-requests-jitter 25 --access-logfile - --error-logfile -"
     environment:
       - DEBUG=False
       - DB_HOST=db
@@ -93,6 +94,15 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.vybra-web.rule=Host(`${TRAEFIK_HOST:-vybra.localhost}`)"
+      - "traefik.http.routers.vybra-web.entrypoints=websecure"
+      - "traefik.http.routers.vybra-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vybra-web.loadbalancer.server.port=8000"
+    networks:
+      - traefik
 
   celery:
     restart: unless-stopped
@@ -179,6 +189,7 @@ services:
   celery-beat:
     restart: unless-stopped
     init: true
+    image: vybra-web:latest
     command: celery -A vybra beat -l info -s /tmp/celerybeat-schedule
     environment:
       - DEBUG=False
@@ -212,3 +223,7 @@ services:
 
 volumes:
   media_data:
+
+networks:
+  traefik:
+    external: true
