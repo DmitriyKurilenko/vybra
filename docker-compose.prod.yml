@@ -1,5 +1,6 @@
 services:
   db:
+    image: postgres:15
     restart: unless-stopped
     command: postgres -c shared_buffers=32MB -c work_mem=1MB -c maintenance_work_mem=8MB -c max_connections=15
     environment:
@@ -21,6 +22,7 @@ services:
         max-file: "2"
 
   redis:
+    image: redis:7-alpine
     restart: unless-stopped
     command: redis-server --save "" --appendonly no --maxmemory 32mb --maxmemory-policy allkeys-lru
     healthcheck:
