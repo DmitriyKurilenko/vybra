@@ -68,6 +68,8 @@ node_modules/
 npm-debug.log
 yarn-error.log
 
+# Config files that may contain secrets
+*.ini
 
 #Claude
 .claude/
