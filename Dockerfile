@@ -1,8 +1,25 @@
+# ─── Stage 1: сборка SPA (front_redesign) ────────────────────────────────────
+# Node нужен только на этапе сборки; в runtime-образ не попадает.
+FROM node:20-slim AS frontend
+
+WORKDIR /frontend
+
+# Зависимости отдельным слоем — кэшируются, пока не меняется package.json.
+COPY front_redesign/package.json ./
+RUN npm install
+
+# Исходники и сборка: Vite пишет в /frontend/dist с base=/static/spa/.
+COPY front_redesign/ ./
+RUN npm run build
+
+
+# ─── Stage 2: runtime ────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    HOME=/tmp
 
 WORKDIR /app
 
@@ -22,7 +39,10 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 # Исходники
 COPY . /app/
 
-# Staticfiles собираются во время сборки образа.
+# Собранный SPA из стадии frontend (front_redesign/dist готовится npm run build).
+COPY --from=frontend /frontend/dist /app/front_redesign/dist
+
+# Staticfiles собираются во время сборки образа (включая SPA под /static/spa/).
 # Реальные секреты для collectstatic не нужны.
 ARG SECRET_KEY=build-time-dummy-key-not-used-in-production
 ARG JWT_SECRET_KEY=build-time-dummy-jwt-key-not-used-in-production

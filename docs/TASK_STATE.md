@@ -3,6 +3,16 @@
 ## Active
 
 ## Done
+- [x] Replace server-rendered templates with SPA frontend (front_redesign)
+  - Added `front_redesign/` — Vite-based SPA with src/, vite.config.js, package.json
+  - Multi-stage Dockerfile: Node stage builds SPA, Python stage packages it
+  - `vybra/views.py`: `spa_index` view serves compiled SPA shell under `/app/*`
+  - Added `/api/wishlist/state` aggregated endpoint for SPA
+  - Added `/api/wishlist/budget` GET/PUT endpoints
+  - Added `UserProfile.budget` field (migration `0003`)
+  - Removed old Django template pages (login, register, dashboard, compare, items, profile, base)
+  - Updated landing page links to point to `/app`
+  - OAuth callback now redirects to `/app` (SPA)
 - [x] Configure project to work through shared Traefik reverse proxy
   - Traefik labels on `web` service
   - External `traefik` network

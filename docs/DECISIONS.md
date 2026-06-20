@@ -50,3 +50,27 @@ Extract parsing-related services into a separate `docker-compose.parsing.yml` ov
 - Reduced baseline resource usage in production
 - `deploy.sh` must support multiple compose files when `--with-parsing` is passed
 - Operators must explicitly opt-in to run selenium and background workers
+
+## DEC-004: SPA frontend (front_redesign) replacing server-rendered templates
+
+**Date:** 2026-06-20
+**Status:** Accepted
+
+### Context
+The previous frontend used Django templates (server-rendered HTML with Alpine.js and Tailwind). This tight coupling between backend and frontend made development slower, required full page reloads for navigation, and complicated the use of modern frontend tooling. The marketing landing page was the only page that needed server rendering for SEO; the application itself (dashboard, compare, items, profile) is a purely client-side experience.
+
+### Decision
+Replace the Django template-based frontend with a standalone SPA built with Vite. The backend remains a Django monolith with Django Ninja API.
+- Marketing landing (`/`) remains server-rendered via `templates/landing.html` for SEO
+- Application routes (`/app/*`) are served by a single Django view (`spa_index`) that returns the compiled SPA shell (`front_redesign/dist/index.html`)
+- SPA assets (hashed by Vite) are served by WhiteNoise under `/static/spa/`
+- The SPA communicates with the backend exclusively via `/api/*` endpoints
+- A multi-stage Dockerfile builds the SPA first (Node.js stage), then packages it into the runtime image
+
+### Consequences
+- Frontend and backend are now decoupled: frontend team can work independently with `npm run dev` proxying to the Django API
+- Application navigation is fully client-side with no server roundtrips
+- SPA must implement its own auth state management using the existing JWT cookie-based auth
+- OAuth callback redirects to `/app` (SPA) instead of `/dashboard/`
+- Old server-rendered page templates (`login.html`, `register.html`, `dashboard.html`, `compare.html`, `items.html`, `profile.html`, `base.html`) are removed
+- `UserProfile.budget` field added to support SPA's "budget for top screen" feature

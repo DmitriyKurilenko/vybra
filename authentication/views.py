@@ -9,24 +9,14 @@ from urllib.parse import urlencode
 
 from .api import create_tokens, build_unique_username_from_email, normalize_email, set_auth_cookies
 
+# Публичный маркетинговый лендинг на «/» (server-rendered). Вход/регистрация и
+# само приложение — в SPA (front_redesign) под /app. Здесь же server-side
+# поток Google OAuth.
+
 
 def landing(request):
-    """Посадочная страница"""
+    """Публичная посадочная страница на /."""
     return render(request, 'landing.html')
-
-
-def login_view(request):
-    """Страница входа"""
-    return render(request, 'authentication/login.html', {
-        'google_enabled': bool(os.environ.get('GOOGLE_CLIENT_ID') and os.environ.get('GOOGLE_CLIENT_SECRET')),
-    })
-
-
-def register_view(request):
-    """Страница регистрации"""
-    return render(request, 'authentication/register.html', {
-        'google_enabled': bool(os.environ.get('GOOGLE_CLIENT_ID') and os.environ.get('GOOGLE_CLIENT_SECRET')),
-    })
 
 
 def google_login_start(request):
@@ -122,6 +112,7 @@ def google_login_callback(request):
         user.save(update_fields=['password', 'first_name', 'last_name'])
 
     tokens = create_tokens(user)
-    response = HttpResponseRedirect('/dashboard/')
+    # После OAuth возвращаемся в приложение (SPA).
+    response = HttpResponseRedirect('/app')
     set_auth_cookies(response, tokens, request=request)
     return response

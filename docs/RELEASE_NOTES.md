@@ -1,5 +1,29 @@
 # Release Notes
 
+## v0.3.0 — SPA Frontend (front_redesign)
+
+**Major frontend architecture change. No breaking changes to the API.**
+
+### What changed
+- The application UI (dashboard, compare, items, profile) is now a standalone SPA served under `/app` instead of server-rendered Django templates
+- Marketing landing page (`/`) remains server-rendered for SEO
+- OAuth callback now redirects to `/app` (SPA) instead of `/dashboard/`
+- `UserProfile.budget` field added to track user's selection budget
+- New `/api/wishlist/state` endpoint aggregates items, matches count, and budget in one request for SPA initialization
+- New `/api/wishlist/budget` GET/PUT endpoints for budget management
+- Multi-stage Dockerfile builds the SPA during image creation; no separate build step required
+
+### Action required for operators
+- **Update deployed image:** The SPA is built inside the Docker image. Rebuild with `docker compose build`.
+- **No URL changes for users:** All old URLs (`/dashboard/`, `/compare/`, etc.) are now handled by the SPA client-side routing. The landing page (`/`) and legal pages (`/legal/*`) remain unchanged.
+- **First run:** If the SPA bundle is missing, the app returns a clear 500 error pointing to the build step.
+
+### Internal
+- `front_redesign/` — Vite-based SPA project
+- Removed templates: `login.html`, `register.html`, `base.html`, `dashboard.html`, `compare.html`, `items.html`, `profile.html`
+- Removed auth views: `login_view`, `register_view`
+- Removed wishlist views: `dashboard`, `compare`, `items`, `profile`
+
 ## v0.2.2 — Parsing Services as Optional Overlay
 
 **Behavioral change for operators running parsing tasks.**

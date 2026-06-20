@@ -46,6 +46,21 @@ class WBFavoritesImportSchema(Schema):
     data: str
 
 
+# Aggregated state for SPA (front_redesign): один запрос вместо нескольких.
+class StateSchema(Schema):
+    items: List[ItemSchema]
+    matches: int
+    budget: int
+
+
+class BudgetSchema(Schema):
+    budget: int
+
+
+class BudgetUpdateSchema(Schema):
+    budget: int
+
+
 # Dashboard schemas
 class DashboardStatsSchema(Schema):
     total_items: int

@@ -26,6 +26,9 @@ from .schemas import (
     ItemFromUrlSchema,
     ItemsFromCatalogSchema,
     WBFavoritesImportSchema,
+    StateSchema,
+    BudgetSchema,
+    BudgetUpdateSchema,
     DashboardSchema,
     DashboardStatsSchema,
     TaskResponseSchema,
@@ -455,6 +458,56 @@ def import_metrics(request, days: int = 7):
         'avg_fast_import_ms': int(aggregates['avg_fast_import_ms']) if aggregates.get('avg_fast_import_ms') is not None else None,
         'avg_total_ms': int(aggregates['avg_total_ms']) if aggregates.get('avg_total_ms') is not None else None,
     }
+
+
+# ============================================================================
+# STATE & BUDGET (SPA aggregation)
+# ============================================================================
+
+@router.get("/state", response=StateSchema, auth=auth)
+def get_state(request):
+    """
+    Агрегированное состояние для SPA: активные товары, число сравнений и бюджет.
+    Один запрос вместо отдельных /items, /dashboard и /budget при старте.
+    """
+    from authentication.models import UserProfile
+
+    items = Item.objects.filter(
+        user=request.auth,
+        is_active=True,
+    ).select_related('product')
+
+    matches = Comparison.objects.filter(user=request.auth).count()
+    profile, _ = UserProfile.objects.get_or_create(user=request.auth)
+
+    return {
+        'items': [serialize_item(item) for item in items],
+        'matches': matches,
+        'budget': profile.budget,
+    }
+
+
+@router.get("/budget", response=BudgetSchema, auth=auth)
+def get_budget(request):
+    """Текущий бюджет пользователя."""
+    from authentication.models import UserProfile
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.auth)
+    return {'budget': profile.budget}
+
+
+@router.put("/budget", response=BudgetSchema, auth=auth)
+def update_budget(request, payload: BudgetUpdateSchema):
+    """Обновить бюджет пользователя."""
+    from authentication.models import UserProfile
+
+    if payload.budget < 0:
+        raise ValidationError("Бюджет не может быть отрицательным")
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.auth)
+    profile.budget = payload.budget
+    profile.save(update_fields=['budget'])
+    return {'budget': profile.budget}
 
 
 # ============================================================================

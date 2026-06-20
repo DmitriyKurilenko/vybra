@@ -3,10 +3,8 @@ from . import views
 
 app_name = 'wishlist'
 
+# Страницы приложения (dashboard/compare/items/profile) теперь обслуживает SPA
+# (front_redesign). Server-rendered остаются только юридические документы.
 urlpatterns = [
-    path('dashboard/', views.dashboard, name='dashboard'),
-    path('compare/', views.compare, name='compare'),
-    path('items/', views.items, name='items'),
-    path('profile/', views.profile, name='profile'),
     path('legal/<slug:doc>/', views.legal_document, name='legal_document'),
 ]

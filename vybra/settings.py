@@ -99,7 +99,16 @@ USE_TZ = True
 # ─── Статика и медиа ─────────────────────────────────────────────────────────
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+
+# Собранный SPA (front_redesign) монтируется под префиксом /static/spa/.
+# Ассеты уже контентно-хешированы Vite, оболочку index.html отдаёт SPA-view.
+FRONTEND_DIST = BASE_DIR / 'front_redesign' / 'dist'
+FRONTEND_INDEX = FRONTEND_DIST / 'index.html'
+
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+    ('spa', FRONTEND_DIST),
+]
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'

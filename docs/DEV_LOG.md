@@ -1,5 +1,56 @@
 # Development Log
 
+## 2026-06-20 (session 5)
+
+### Files changed
+- `front_redesign/` (new)
+  - Vite-based SPA frontend with `src/`, `vite.config.js`, `package.json`, `index.html`, `BACKEND.md`, `README.md`
+  - Built with Vite, serves assets under `/static/spa/` with content hashing
+- `Dockerfile`
+  - Added multi-stage build: Stage 1 (`node:20-slim`) builds SPA, Stage 2 (`python:3.11-slim`) packages it
+  - `COPY --from=frontend /frontend/dist /app/front_redesign/dist`
+- `vybra/views.py` (new)
+  - `spa_index` view serves compiled SPA shell; `FRONTEND_INDEX` setting points to `front_redesign/dist/index.html`
+- `authentication/models.py`
+  - Added `budget = PositiveIntegerField(default=15000)` to `UserProfile`
+- `authentication/migrations/0003_userprofile_budget.py` (new)
+- `authentication/urls.py`
+  - Removed `login/` and `register/` routes
+- `authentication/views.py`
+  - Removed `login_view` and `register_view` functions
+  - `google_login_callback` now redirects to `/app` (SPA) instead of `/dashboard/`
+- `templates/landing.html`
+  - All links updated from `/login/`, `/register/` to `/app`
+- `vybra/settings.py`
+  - Added `FRONTEND_DIST` and `FRONTEND_INDEX` settings
+  - `STATICFILES_DIRS` now includes `('spa', FRONTEND_DIST)`
+- `vybra/urls.py`
+  - Added `re_path(r'^app(?:/.*)?$', spa_index)` for SPA routes
+- `wishlist/api.py`
+  - Added `get_state` (aggregated items + matches + budget)
+  - Added `get_budget` and `update_budget` endpoints
+- `wishlist/schemas.py`
+  - Added `StateSchema`, `BudgetSchema`, `BudgetUpdateSchema`
+- `wishlist/urls.py`
+  - Removed `dashboard/`, `compare/`, `items/`, `profile/` routes
+- `wishlist/views.py`
+  - Removed `dashboard`, `compare`, `items`, `profile` views; only `legal_document` remains
+- Deleted `templates/authentication/login.html`, `templates/authentication/register.html`, `templates/base.html`, `templates/wishlist/dashboard.html`, `templates/wishlist/compare.html`, `templates/wishlist/items.html`, `templates/wishlist/profile.html`
+
+### Validation
+- `python -m py_compile vybra/views.py` passed
+- `python -m py_compile wishlist/api.py` passed
+- `python -m py_compile authentication/views.py` passed
+- `python -m py_compile authentication/models.py` passed
+- `python manage.py check` (dry-run; settings may need env vars)
+
+### Risks
+- If `front_redesign/dist/index.html` is not present at startup, `spa_index` returns 500 with a clear error message; the build must run before `collectstatic`
+- SPA must implement its own JWT cookie-based auth state management (existing API unchanged)
+- Users with existing sessions will be redirected to `/app` after OAuth callback, which is the intended behavior
+
+---
+
 ## 2026-06-01
 
 ### Files changed
