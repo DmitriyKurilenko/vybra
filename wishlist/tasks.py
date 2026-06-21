@@ -486,17 +486,26 @@ def add_item_from_url(user_id, url):
         # Извлекаем артикул из URL
         article_code = extract_article_code(url, marketplace)
 
-        # Пытаемся найти товар в глобальном каталоге
+        # Ищем существующий товар в глобальном каталоге
         product = None
-        result = None
         if article_code:
             product = Product.objects.filter(article_code=article_code).first()
             if product:
                 logger.info(f"Found product in catalog: {product.name}")
+                # Обновляем URL, если он изменился
+                if url and product.url != url:
+                    product.url = url
+                    product.save(update_fields=['url'])
 
-        # Если товар не найден в каталоге - парсим
-        if not product:
-            logger.info(f"Product not in catalog, parsing from {url}...")
+        # Парсим данные, если товар новый или данные могут быть устаревшими/неполными
+        result = None
+        needs_parsing = (
+            not product
+            or _product_needs_enrichment(product)
+        )
+
+        if needs_parsing:
+            logger.info(f"Parsing product data from {url}...")
             cache_key = _parsed_product_cache_key(marketplace, article_code=article_code, url=url)
             result = cache.get(cache_key)
 
@@ -523,41 +532,58 @@ def add_item_from_url(user_id, url):
                 if result:
                     cache.set(cache_key, result, timeout=PARSED_PRODUCT_CACHE_TTL)
 
-            if not result:
+            # Если товар новый и парсинг не удался — отказываемся добавлять placeholder
+            if not product and not result:
                 return {
                     'success': False,
                     'message': 'Не удалось получить данные о товаре'
                 }
 
-            # Проверяем, что получили минимально необходимые данные
-            if not result.get('name') and not result.get('price'):
+            # Если товар новый и данных недостаточно — тоже отказываемся
+            if not product and not result.get('name') and not result.get('price'):
                 return {
                     'success': False,
                     'message': 'Не удалось получить данные о товаре'
                 }
 
-            # Создаём товар в глобальном каталоге
+        # Создаём товар в каталоге, если его ещё нет
+        if not product:
             product_name = result.get('name') or f"Товар {article_code or 'без артикула'}"
+            article_for_product = article_code or f"manual_{user.id}_{int(timezone.now().timestamp())}"
 
-            product = Product.objects.create(
-                article_code=article_code or f"manual_{user.id}_{timezone.now().timestamp()}",
-                name=product_name,
-                marketplace=marketplace,
-                url=url,
-                price=result.get('price'),
-                image_url=result.get('image_url'),
-                brand=result.get('brand'),
-                category=result.get('category'),
-                rating=_to_decimal_or_none(result.get('rating')),
-                reviews_count=_to_int_or_none(result.get('reviews_count')),
-                last_price_check=timezone.now()
+            product, created = Product.objects.get_or_create(
+                article_code=article_for_product,
+                defaults={
+                    'name': product_name,
+                    'marketplace': marketplace,
+                    'url': url,
+                    'price': result.get('price'),
+                    'image_url': result.get('image_url'),
+                    'brand': result.get('brand'),
+                    'category': result.get('category'),
+                    'rating': _to_decimal_or_none(result.get('rating')),
+                    'reviews_count': _to_int_or_none(result.get('reviews_count')),
+                    'last_price_check': timezone.now()
+                }
             )
-            logger.info(f"Created new product in catalog: {product.name}")
+            if created:
+                logger.info(f"Created new product in catalog: {product.name}")
+            else:
+                logger.info(f"Found existing product in catalog: {product.name}")
 
-        # Обогащаем существующий товар из уже полученного результата парсинга
+        # Обогащаем существующий товар из полученного результата парсинга
         # (без повторного Selenium-запроса)
-        if product and article_code and result:
+        if product and result:
             changed_fields = []
+            if result.get('name') and (
+                not product.name
+                or product.name.startswith('Товар ')
+            ):
+                product.name = result['name']
+                changed_fields.append('name')
+            if result.get('price') is not None and product.price is None:
+                product.price = _to_decimal_or_none(result['price'])
+                changed_fields.append('price')
             if result.get('category') and not product.category:
                 product.category = result['category']
                 changed_fields.append('category')
@@ -575,10 +601,13 @@ def add_item_from_url(user_id, url):
             if result.get('brand') and not product.brand:
                 product.brand = result['brand']
                 changed_fields.append('brand')
+            if result.get('url') and not product.url:
+                product.url = result['url']
+                changed_fields.append('url')
             if changed_fields:
                 product.last_price_check = timezone.now()
                 changed_fields.append('last_price_check')
-                product.save(update_fields=changed_fields)
+                product.save(update_fields=list(dict.fromkeys(changed_fields)))
 
         # Проверяем, не добавлен ли уже этот товар в wishlist пользователя
         existing_item = Item.objects.select_related('product').filter(user=user, product=product).first()

@@ -5,6 +5,7 @@
 import requests
 import re
 import os
+import json
 from decimal import Decimal, InvalidOperation
 from typing import Optional, Dict
 import logging
@@ -64,13 +65,16 @@ class WildberriesParser(MarketplaceParser):
         self.close()
 
     def extract_product_id(self, url: str) -> Optional[str]:
-        """Извлечь ID товара из URL"""
+        """Извлечь ID товара из URL Wildberries"""
         patterns = [
+            r'/catalog/(\d+)/detail',
             r'/catalog/(\d+)/',
-            r'/(\d+)/detail',
+            r'[?&]card=(\d+)',
+            r'/product/[^/]+-(\d+)/?',
+            r'wb\.ru/catalog/(\d+)/',
         ]
         for pattern in patterns:
-            match = re.search(pattern, url)
+            match = re.search(pattern, url, re.IGNORECASE)
             if match:
                 return match.group(1)
         return None
@@ -219,14 +223,22 @@ class WildberriesParser(MarketplaceParser):
 
 
 class OzonParser(MarketplaceParser):
-    """Парсер для Ozon"""
+    """Парсер для Ozon через requests + fallback к JSON-LD/regex"""
+
+    def __init__(self):
+        super().__init__()
+        self.session.headers.update({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ru-RU,ru;q=0.9',
+        })
 
     def extract_product_id(self, url: str) -> Optional[str]:
         """Извлечь ID товара из URL Ozon"""
         # Пример: https://www.ozon.ru/product/name-123456789/
         patterns = [
-            r'/product/[^/]+-(\d+)/',
-            r'-(\d+)/$',
+            r'/product/[^/]+-(\d+)/?',
+            r'/product/(\d+)/?',
+            r'-(\d+)/?$',
             r'-(\d+)\?',
         ]
         for pattern in patterns:
@@ -235,28 +247,120 @@ class OzonParser(MarketplaceParser):
                 return match.group(1)
         return None
 
+    def _extract_og_or_ld(self, text: str) -> Optional[Dict]:
+        """Извлечь базовые данные из JSON-LD или OpenGraph"""
+        result = {
+            'name': None,
+            'price': None,
+            'image_url': None,
+            'rating': None,
+            'reviews_count': None,
+            'category': None,
+            'brand': None,
+        }
+        if not text:
+            return result
+
+        # JSON-LD Product
+        for ld_match in re.finditer(
+            r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
+            text, re.DOTALL | re.IGNORECASE,
+        ):
+            try:
+                payload = json.loads(ld_match.group(1))
+                entries = payload if isinstance(payload, list) else [payload]
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    entry_type = str(entry.get('@type', '')).lower()
+                    if 'product' not in entry_type:
+                        continue
+                    if entry.get('name') and not result['name']:
+                        result['name'] = str(entry['name']).strip()
+                    if entry.get('brand'):
+                        brand = entry['brand']
+                        if isinstance(brand, dict):
+                            brand = brand.get('name')
+                        if brand and not result['brand']:
+                            result['brand'] = str(brand).strip()
+                    if entry.get('category') and not result['category']:
+                        result['category'] = str(entry['category']).strip()
+                    offers = entry.get('offers')
+                    if isinstance(offers, dict) and result['price'] is None:
+                        price_val = offers.get('price')
+                        if price_val is not None:
+                            try:
+                                result['price'] = Decimal(str(price_val))
+                            except Exception:
+                                pass
+                    image = entry.get('image')
+                    if isinstance(image, list) and image:
+                        image = image[0]
+                    if image and not result['image_url']:
+                        result['image_url'] = str(image).strip()
+                    agg = entry.get('aggregateRating')
+                    if isinstance(agg, dict):
+                        if result['rating'] is None and agg.get('ratingValue') is not None:
+                            try:
+                                result['rating'] = float(str(agg['ratingValue']).replace(',', '.'))
+                            except Exception:
+                                pass
+                        if result['reviews_count'] is None and agg.get('reviewCount') is not None:
+                            try:
+                                result['reviews_count'] = int(float(str(agg['reviewCount'])))
+                            except Exception:
+                                pass
+            except Exception:
+                continue
+
+        # Fallback: meta og:title / og:image
+        if not result['name']:
+            m = re.search(r'<meta[^>]*property="og:title"[^>]*content="([^"]+)"', text, re.IGNORECASE)
+            if m:
+                result['name'] = m.group(1).strip()
+        if not result['image_url']:
+            m = re.search(r'<meta[^>]*property="og:image"[^>]*content="([^"]+)"', text, re.IGNORECASE)
+            if m:
+                result['image_url'] = m.group(1).strip()
+
+        # Fallback price from inline scripts / data
+        if result['price'] is None:
+            m = re.search(r'"price"\s*:\s*"?(\d[\d\s,]*)"?', text, re.IGNORECASE)
+            if m:
+                try:
+                    result['price'] = Decimal(re.sub(r'[^\d]', '', m.group(1)))
+                except Exception:
+                    pass
+
+        return result
+
     def parse(self, url: str) -> Optional[Dict]:
         """
-        Парсинг товара Ozon
-
-        Примечание: Ozon также использует антибот-защиту.
-        Для продакшена рекомендуется использовать:
-        1. Selenium/Playwright
-        2. Официальное API Ozon (требует регистрации)
-        3. Платные сервисы парсинга
+        Парсинг товара Ozon через requests.
+        При блокировке возвращает None — Celery задача перейдет к Selenium fallback.
         """
         product_id = self.extract_product_id(url)
         if not product_id:
             logger.warning(f"Cannot extract product ID from Ozon URL: {url}")
             return None
 
-        # TODO: Реализовать парсинг Ozon
-        # Варианты:
-        # 1. API endpoint (если найдем публичный)
-        # 2. Selenium для обхода защиты
-        # 3. Официальное API (требует ключи)
+        try:
+            response = self.session.get(url, timeout=10, allow_redirects=True)
+            if response.status_code != 200:
+                logger.warning(f"Ozon request returned {response.status_code}")
+                return None
 
-        logger.warning("Ozon parser not fully implemented yet")
+            result = self._extract_og_or_ld(response.text)
+            if result.get('name') or result.get('price'):
+                logger.info(f"Successfully parsed Ozon product {product_id} via requests")
+                return result
+
+        except requests.RequestException as e:
+            logger.debug(f"Ozon requests parser failed: {e}")
+        except Exception as e:
+            logger.debug(f"Ozon parser unexpected error: {e}")
+
+        logger.warning(f"Ozon requests parser failed for {product_id}, will fallback to Selenium")
         return None
 
 

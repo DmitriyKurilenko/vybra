@@ -9,14 +9,23 @@ import { Btn, Card, Pill, CatBlock, Stars } from '../components/ui.jsx';
 import { previewUrl, SAMPLE_LINKS } from '../api/index.js';
 
 const SOURCES = ['WB', 'OZON', 'URL'];
+const BULK_PLACEHOLDER = `Вставь share-текст из Wildberries (название + ссылка).
 
-export function AddSheet({ t, wide, onClose, onAdd, onDone }) {
-  const [mode, setMode] = useState('link'); // 'link' | 'manual'
+Пример:
+Кроссовки NB 530
+https://www.wildberries.ru/catalog/12345/detail.aspx
+Футболка оверсайз
+https://www.wildberries.ru/catalog/67890/detail.aspx`;
+
+export function AddSheet({ t, wide, onClose, onAdd, onImportBulk, onDone }) {
+  const [mode, setMode] = useState('link'); // 'link' | 'manual' | 'bulk'
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState(null);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [source, setSource] = useState('WB');
+  const [bulkText, setBulkText] = useState('');
+  const [bulkResult, setBulkResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -44,10 +53,41 @@ export function AddSheet({ t, wide, onClose, onAdd, onDone }) {
     }
   }
 
+  const detectedBulkCount = (() => {
+    if (!bulkText.trim()) return 0;
+    return (bulkText.match(/https?:\/\/[^\s]+/g) || []).length;
+  })();
+
+  async function submitBulk() {
+    if (busy || detectedBulkCount === 0) return;
+    setError(null);
+    setBulkResult(null);
+    setBusy(true);
+    try {
+      const result = await onImportBulk(bulkText);
+      const imported = result.imported ?? result.created ?? 0;
+      const reactivated = result.reactivated ?? 0;
+      const failed = result.failed ?? 0;
+      const duplicates = result.duplicates ?? 0;
+      setBulkResult({ imported, reactivated, failed, duplicates, message: result.message });
+      if (imported > 0 || reactivated > 0) {
+        onDone(`Добавлено ${imported + reactivated} товаров`);
+      }
+    } catch (e) {
+      setError(
+        e?.status === 504 ? 'Импорт занял слишком много времени. Попробуй разделить список на части.'
+          : e?.status === 502 ? 'Не удалось импортировать товары. Проверь ссылки.'
+            : 'Не удалось импортировать. Попробуй ещё раз.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const Tabs = (
     <div style={{ display: 'flex', gap: 4, background: t.fill, padding: 3, borderRadius: t.radius, marginBottom: 16 }}>
-      {[['link', 'По ссылке'], ['manual', 'Вручную']].map(([id, label]) => (
-        <button key={id} onClick={() => { setMode(id); setError(null); }} disabled={busy}
+      {[['link', 'По ссылке'], ['manual', 'Вручную'], ['bulk', 'Массово']].map(([id, label]) => (
+        <button key={id} onClick={() => { setMode(id); setError(null); setBulkResult(null); }} disabled={busy}
           style={{ flex: 1, border: 'none', cursor: busy ? 'default' : 'pointer', padding: '8px 0', borderRadius: t.radiusSm,
             background: mode === id ? t.surface : 'transparent', color: mode === id ? t.ink : t.ink2,
             fontFamily: t.font, fontWeight: 600, fontSize: 12.5, boxShadow: mode === id ? `0 1px 4px rgba(0,0,0,.08)` : 'none' }}>
@@ -111,6 +151,56 @@ export function AddSheet({ t, wide, onClose, onAdd, onDone }) {
     </>
   );
 
+  const BulkMode = (
+    <>
+      <textarea
+        value={bulkText}
+        onChange={(e) => setBulkText(e.target.value)}
+        placeholder={BULK_PLACEHOLDER}
+        disabled={busy}
+        rows={wide ? 8 : 6}
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          border: 'none',
+          outline: 'none',
+          resize: 'none',
+          background: 'transparent',
+          fontFamily: t.font,
+          fontSize: 13,
+          color: t.ink,
+          padding: '12px 14px',
+          borderRadius: t.radius,
+          boxShadow: `inset 0 0 0 ${t.borderW}px ${t.hair}`,
+          lineHeight: 1.45,
+        }}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+        <div style={{ fontFamily: t.font, fontSize: 11, color: t.ink3 }}>
+          {detectedBulkCount === 0 ? 'Вставь ссылки' : `Найдено ссылок: ${detectedBulkCount}`}
+        </div>
+        {bulkResult && (
+          <div style={{ fontFamily: t.font, fontSize: 11, color: t.ink2, textAlign: 'right' }}>
+            Добавлено: {bulkResult.imported + bulkResult.reactivated}
+            {bulkResult.failed > 0 && `, ошибок: ${bulkResult.failed}`}
+            {bulkResult.duplicates > 0 && `, дубликаты: ${bulkResult.duplicates}`}
+          </div>
+        )}
+      </div>
+
+      {errorBox}
+
+      <Btn t={t} variant="primary" full disabled={busy || detectedBulkCount === 0} onClick={submitBulk} style={{ marginTop: 18 }}>
+        {busy ? 'Импортируем…' : `Добавить ${detectedBulkCount || ''} товар${detectedBulkCount === 1 ? '' : 'ов'}`}
+      </Btn>
+      {busy && (
+        <div style={{ fontFamily: t.font, fontSize: 11, color: t.ink3, textAlign: 'center', marginTop: 9, lineHeight: 1.4 }}>
+          Импорт может занять несколько минут
+        </div>
+      )}
+    </>
+  );
+
   const ManualMode = (
     <>
       <label style={{ display: 'block' }}>
@@ -154,7 +244,7 @@ export function AddSheet({ t, wide, onClose, onAdd, onDone }) {
         <span style={{ width: 48 }} />
       </div>
       {Tabs}
-      {mode === 'link' ? LinkMode : ManualMode}
+      {mode === 'link' ? LinkMode : mode === 'bulk' ? BulkMode : ManualMode}
     </>
   );
 

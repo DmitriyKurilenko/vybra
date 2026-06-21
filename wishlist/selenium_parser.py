@@ -215,6 +215,9 @@ class SeleniumWildberriesParser:
             self.driver.execute_script(
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
+            self.driver.set_page_load_timeout(60)
+            self.driver.set_script_timeout(30)
+            self.driver.implicitly_wait(5)
             self._cookies_loaded_for_session = False
             self._session_count += 1
             logger.info(
@@ -1337,6 +1340,115 @@ def parse_favorites_with_selenium(user_id=None, headless=False, max_items=200):
         return parser.parse_favorites(user_id=user_id, max_items=max_items)
 
 
+def _extract_ozon_from_page_source(source: str) -> Dict:
+    """Извлечь данные Ozon из HTML source через JSON-LD/regex."""
+    result = {
+        'name': None,
+        'brand': None,
+        'price': None,
+        'rating': None,
+        'reviews_count': None,
+        'category': None,
+        'image_url': None,
+    }
+    if not source:
+        return result
+
+    # JSON-LD
+    for ld_match in re.finditer(
+        r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
+        source, re.DOTALL | re.IGNORECASE,
+    ):
+        try:
+            payload = json.loads(ld_match.group(1))
+        except Exception:
+            continue
+        entries = payload if isinstance(payload, list) else [payload]
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            entry_type = str(entry.get('@type', '')).lower()
+            if 'product' not in entry_type:
+                continue
+            if entry.get('name') and not result['name']:
+                result['name'] = str(entry['name']).strip()
+            brand = entry.get('brand')
+            if isinstance(brand, dict):
+                brand = brand.get('name')
+            if brand and not result['brand']:
+                result['brand'] = str(brand).strip()
+            if entry.get('category') and not result['category']:
+                result['category'] = str(entry['category']).strip()
+            offers = entry.get('offers')
+            if isinstance(offers, dict) and result['price'] is None:
+                price_val = offers.get('price')
+                if price_val is not None:
+                    try:
+                        result['price'] = Decimal(str(price_val))
+                    except Exception:
+                        pass
+            image = entry.get('image')
+            if isinstance(image, list) and image:
+                image = image[0]
+            if image and not result['image_url']:
+                result['image_url'] = str(image).strip()
+            agg = entry.get('aggregateRating')
+            if isinstance(agg, dict):
+                if result['rating'] is None and agg.get('ratingValue') is not None:
+                    try:
+                        result['rating'] = float(str(agg['ratingValue']).replace(',', '.'))
+                    except Exception:
+                        pass
+                if result['reviews_count'] is None and agg.get('reviewCount') is not None:
+                    try:
+                        result['reviews_count'] = int(float(str(agg['reviewCount'])))
+                    except Exception:
+                        pass
+
+    # OpenGraph fallback
+    if not result['name']:
+        m = re.search(r'<meta[^>]*property="og:title"[^>]*content="([^"]+)"', source, re.IGNORECASE)
+        if m:
+            result['name'] = m.group(1).strip()
+    if not result['image_url']:
+        m = re.search(r'<meta[^>]*property="og:image"[^>]*content="([^"]+)"', source, re.IGNORECASE)
+        if m:
+            result['image_url'] = m.group(1).strip()
+
+    # Regex fallback
+    if result['price'] is None:
+        for pattern in [
+            r'"finalPrice"\s*:\s*(\d+)',
+            r'"price"\s*:\s*(\d+)',
+            r'"ozonPrice"\s*:\s*(\d+)',
+        ]:
+            m = re.search(pattern, source)
+            if m:
+                try:
+                    result['price'] = Decimal(m.group(1))
+                    break
+                except Exception:
+                    pass
+
+    if result['rating'] is None:
+        m = re.search(r'"ratingValue"\s*:\s*([0-9]+(?:[\.,][0-9]+)?)', source, re.IGNORECASE)
+        if m:
+            try:
+                result['rating'] = float(m.group(1).replace(',', '.'))
+            except Exception:
+                pass
+
+    if result['reviews_count'] is None:
+        m = re.search(r'"reviewCount"\s*:\s*(\d{1,9})', source, re.IGNORECASE)
+        if m:
+            try:
+                result['reviews_count'] = int(m.group(1))
+            except Exception:
+                pass
+
+    return result
+
+
 def parse_ozon_product_with_selenium(url, headless=True, timeout=30):
     """
     Быстрый парсинг карточки Ozon через Selenium.
@@ -1356,118 +1468,75 @@ def parse_ozon_product_with_selenium(url, headless=True, timeout=30):
         _sleep(3)
         wait = WebDriverWait(driver, timeout)
 
-        result = {
-            'name': None,
-            'brand': None,
-            'price': None,
-            'rating': None,
-            'reviews_count': None,
-            'category': None,
-            'image_url': None,
-        }
-
+        # Дожидаемся появления основного контента карточки
         try:
-            for selector in [
-                'h1',
-                '[data-widget="webProductHeading"] h1',
-                '[class*="tsHeadline"]',
-            ]:
-                try:
-                    elem = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-                    if elem and elem.text.strip():
-                        result['name'] = elem.text.strip()
-                        break
-                except Exception:
-                    continue
-        except Exception:
-            pass
-
-        try:
-            for selector in [
-                '[data-widget="webPrice"]',
-                '[class*="price"]',
-                '[data-widget="webCurrentPrice"]',
-            ]:
-                try:
-                    elem = driver.find_element(By.CSS_SELECTOR, selector)
-                    text = elem.text.strip() if elem else ''
-                    m = re.search(r'(\d[\d\s]{1,20})\s*[₽р]', text)
-                    if not m:
-                        m = re.search(r'(\d[\d\s]{1,20})', text)
-                    if m:
-                        digits = re.sub(r'\D', '', m.group(1))
-                        if digits:
-                            result['price'] = Decimal(digits)
-                            break
-                except Exception:
-                    continue
-        except Exception:
-            pass
-
-        try:
-            for selector in [
-                'img[src*="ozon"]',
-                '[data-widget="webGallery"] img',
-                'img',
-            ]:
-                try:
-                    elem = driver.find_element(By.CSS_SELECTOR, selector)
-                    img = elem.get_attribute('src') or elem.get_attribute('data-src')
-                    if img and img.startswith('http'):
-                        result['image_url'] = img
-                        break
-                except Exception:
-                    continue
-        except Exception:
-            pass
+            wait.until(EC.presence_of_element_located((
+                By.CSS_SELECTOR,
+                ', '.join([
+                    'h1',
+                    '[data-widget="webProductHeading"]',
+                    '[class*="tsHeadline"]',
+                    '[class*="p0h_30"]',  # современный Ozon
+                    '[class*="b7b_30"]',
+                ])
+            )))
+        except TimeoutException:
+            logger.warning("Ozon: таймаут загрузки карточки")
 
         source = driver.page_source or ''
+        result = _extract_ozon_from_page_source(source)
 
-        try:
-            category_match = re.search(
-                r'"(?:category|subjectName|title)"\s*:\s*"([^"\\]{2,200})"',
-                source,
-                re.IGNORECASE,
-            )
-            if category_match:
-                result['category'] = category_match.group(1).strip()
-        except Exception:
-            pass
+        # Fallback по видимому тексту
+        if not result.get('name'):
+            try:
+                for selector in ['h1', '[data-widget="webProductHeading"] h1', '[class*="tsHeadline"]']:
+                    try:
+                        elem = driver.find_element(By.CSS_SELECTOR, selector)
+                        if elem and elem.text.strip():
+                            result['name'] = elem.text.strip()
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
 
-        try:
-            rating_match = re.search(
-                r'"(?:ratingValue|rating|reviewRating)"\s*:\s*([0-9]+(?:[\.,][0-9]+)?)',
-                source,
-                re.IGNORECASE,
-            )
-            if rating_match:
-                result['rating'] = float(rating_match.group(1).replace(',', '.'))
-        except Exception:
-            pass
+        if result.get('price') is None:
+            try:
+                body_text = driver.find_element(By.TAG_NAME, 'body').text or ''
+                # Ищем цену вида "1 299 ₽" или "1299₽"
+                m = re.search(r'([\d\s\u00A0]{2,10})\s*[₽р]', body_text)
+                if m:
+                    digits = re.sub(r'\D', '', m.group(1))
+                    if digits:
+                        result['price'] = Decimal(digits)
+            except Exception:
+                pass
 
-        try:
-            reviews_match = re.search(
-                r'"(?:reviewCount|reviewsCount|feedbacks|feedbacksCount)"\s*:\s*([0-9]{1,9})',
-                source,
-                re.IGNORECASE,
-            )
-            if reviews_match:
-                result['reviews_count'] = int(reviews_match.group(1))
-        except Exception:
-            pass
+        if not result.get('image_url'):
+            try:
+                for selector in [
+                    '[data-widget="webGallery"] img',
+                    'img[src*="ozon"][src*="products"]',
+                    'img[src*="cdn1.ozone.ru"]',
+                ]:
+                    try:
+                        elem = driver.find_element(By.CSS_SELECTOR, selector)
+                        img = elem.get_attribute('src') or elem.get_attribute('data-src')
+                        if img and img.startswith('http'):
+                            result['image_url'] = img
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
 
-        try:
-            brand_match = re.search(
-                r'"(?:brand|brandName)"\s*:\s*"([^"\\]{2,120})"',
-                source,
-                re.IGNORECASE,
-            )
-            if brand_match:
-                result['brand'] = brand_match.group(1).strip()
-        except Exception:
-            pass
+        # Очистка названия
+        if result.get('name'):
+            result['name'] = re.sub(r'[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]', '', result['name'])
+            result['name'] = result['name'].replace('\u00A0', ' ').strip()
+            result['name'] = re.sub(r'\s{2,}', ' ', result['name'])[:500]
 
-        if result['name'] or result['price']:
+        if result.get('name') or result.get('price'):
             return result
         return None
     except Exception as e:

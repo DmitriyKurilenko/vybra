@@ -1,8 +1,22 @@
 # Task State
 
 ## Active
+- None
 
 ## Done
+- [x] Fix WB/Ozon parsing in production
+  - Started parsing overlay (`celery`, `selenium`, `celery-beat`)
+  - Raised `selenium` memory limit to 1024m and `celery` to 512m
+  - Added driver timeouts in `selenium_parser.py`
+- [x] Fix adding items by URL
+  - `wishlist/tasks.py`: `get_or_create` for `Product` to prevent `IntegrityError`
+  - Conditional placeholder creation only after successful parse
+  - Improved Ozon parser and WB URL extraction
+- [x] Add bulk import UI
+  - `front_redesign/src/screens/AddSheet.jsx`: "Массово" tab
+  - `front_redesign/src/api/client.js`: `importFavorites`
+  - `front_redesign/src/state/useApp.js`: `importBulk`
+- [x] Bump version to 0.4.1 and update docs
 - [x] Fix mobile viewport overflow — screens not fitting in visible height
   - `front_redesign/src/index.css`: `--app-height` (100dvh with 100vh fallback), `--safe-*` env vars, `overflow: hidden` on html/body/#root
   - `front_redesign/src/App.jsx`: Frame and Splash use `height: var(--app-height)` instead of `minHeight: 100vh`

@@ -51,8 +51,8 @@ services:
         condition: service_healthy
     networks:
       - backend
-    mem_limit: 256m
-    cpus: 0.18
+    mem_limit: 512m
+    cpus: 0.25
     logging:
       driver: json-file
       options:
@@ -62,23 +62,24 @@ services:
   selenium:
     image: selenium/standalone-chromium:4
     restart: unless-stopped
-    shm_size: 128m
+    shm_size: 256m
     environment:
       - SE_NODE_MAX_SESSIONS=1
-      - SE_NODE_SESSION_TIMEOUT=120
+      - SE_NODE_SESSION_TIMEOUT=300
       - SE_VNC_NO_PASSWORD=1
       - SE_START_VNC=false
       - SE_OPTS=--log-level WARNING
+      - JAVA_OPTS=-XX:MaxRAMPercentage=75.0
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:4444/wd/hub/status"]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s
     networks:
       - backend
-    mem_limit: 384m
-    cpus: 0.35
+    mem_limit: 1024m
+    cpus: 0.5
     logging:
       driver: json-file
       options:

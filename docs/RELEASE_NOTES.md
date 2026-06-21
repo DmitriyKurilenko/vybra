@@ -1,5 +1,27 @@
 # Release Notes
 
+## v0.4.1 — Parsing fix + bulk import
+
+**Fixed WB/Ozon parsing, items-by-link flow, and added bulk import UI.**
+
+### What changed
+- Added "Массово" tab to the Add Item sheet for bulk importing Wildberries share text
+- Improved Ozon parser: JSON-LD/page-source extraction plus Selenium fallback
+- Improved Wildberries URL recognition and Selenium stability
+- Production now runs with the parsing overlay (celery + selenium) so link parsing actually executes
+- Fixed `add_item_from_url` to avoid `IntegrityError` on duplicate article codes
+
+### Action required for operators
+- Deploy with parsing overlay: `docker compose -f docker-compose.prod.yml -f docker-compose.parsing.yml up -d --build`
+- Ensure the host has enough memory for `selenium` (limit raised to 1024m) and `celery` (512m)
+
+### Internal
+- `wishlist/tasks.py`: `get_or_create` for `Product`, conditional placeholder creation
+- `wishlist/parsers.py`: Ozon requests parser, broader WB article extraction
+- `wishlist/selenium_parser.py`: Ozon source extraction, driver timeouts
+- `front_redesign/src/screens/AddSheet.jsx`, `api/client.js`, `state/useApp.js`: bulk import UI
+- `docker-compose.parsing.yml`: increased resource limits and session timeout
+
 ## v0.4.0 — Mobile viewport fix + PWA installable app
 
 **Two major improvements: mobile layout and installability. No breaking changes to the API.**

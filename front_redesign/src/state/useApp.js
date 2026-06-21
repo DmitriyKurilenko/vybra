@@ -55,6 +55,12 @@ export function useApp(enabled) {
     return created;
   }, [reload]);
 
+  const importBulk = useCallback(async (rawText) => {
+    const result = await api.importFavorites(rawText);
+    await reload();
+    return result;
+  }, [reload]);
+
   const deleteItem = useCallback(async (id) => {
     await api.deleteItem(id);
     setItems((prev) => prev.filter((x) => x.id !== id));
@@ -75,6 +81,6 @@ export function useApp(enabled) {
   return {
     items, matches, budget, pair, loading, isMock: IS_MOCK,
     confidence: confidenceFrom(matches),
-    recordMatch, addItem, deleteItem, setBudget, reset,
+    recordMatch, addItem, importBulk, deleteItem, setBudget, reset,
   };
 }

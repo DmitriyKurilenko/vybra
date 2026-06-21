@@ -1,5 +1,69 @@
 # Development Log
 
+## 2026-06-21 (session 7)
+
+### Task
+1. Fix WB/Ozon parsing not working in production.
+2. Fix items not being added by URL.
+3. Add bulk import UI for products.
+
+### Files changed
+- `wishlist/tasks.py`
+  - `add_item_from_url`: use `Product.objects.get_or_create` by `article_code`
+  - Avoid creating placeholder products when parsing fails
+  - Enrich existing products only with fresh parsed data
+- `wishlist/parsers.py`
+  - Extended `WildberriesParser.extract_product_id` for more URL formats
+  - Implemented `OzonParser.parse` with JSON-LD/regex extraction
+- `wishlist/selenium_parser.py`
+  - Added `_extract_ozon_from_page_source` helper
+  - Improved `parse_ozon_product_with_selenium` with JSON-LD + visible-text fallback
+  - Added page load/script/implicit timeouts to reduce session timeouts
+- `front_redesign/src/screens/AddSheet.jsx`
+  - Added "Массово" tab with textarea, link counter, and result display
+- `front_redesign/src/api/client.js`
+  - Added `importFavorites` calling `/api/wishlist/items/import-favorites-bulk`
+- `front_redesign/src/state/useApp.js`
+  - Added `importBulk` action
+- `front_redesign/src/App.jsx`
+  - Wired `importBulk` into `AddSheet`
+- `docker-compose.parsing.yml`
+  - `selenium` memory limit: 384m → 1024m
+  - `celery` memory limit: 256m → 512m
+  - `SE_NODE_SESSION_TIMEOUT`: 120 → 300
+  - `shm_size`: 128m → 256m
+- `VERSION`: 0.4.0 → 0.4.1
+- `CHANGELOG.md`, `docs/RELEASE_NOTES.md`, `docs/KNOWN_ISSUES.md`, `docs/TASK_STATE.md`
+
+### Validation
+- Backup created: `backups/vybra_pre_20260621_162341.sql.gz`
+- `docker compose -f docker-compose.prod.yml -f docker-compose.parsing.yml down`
+- `docker compose -f docker-compose.prod.yml -f docker-compose.parsing.yml up -d --build`
+- `docker compose run --rm web python manage.py check` → 0 issues
+- HTTPS checks:
+  - `https://vybra.prvms.ru/` → 200
+  - `https://vybra.prvms.ru/app/` → 200
+  - `https://vybra.prvms.ru/api/docs` → 200
+  - `https://vybra.prvms.ru/sw.js` → 200
+  - `https://vybra.prvms.ru/manifest.webmanifest` → 200
+- End-to-end:
+  - `/api/wishlist/items/add-from-url` for non-existent WB product → task FAILED as expected
+  - `/api/wishlist/items/import-favorites-bulk` → 2 items imported successfully
+  - Selenium driver init in celery container succeeds
+  - Built SPA JS contains "Массово" bulk-import tab
+
+### Issues found and fixed during validation
+- Parsing overlay was not running; starting it fixed the 504/502 errors on add-by-URL.
+- `add_item_from_url` created placeholder products even when parsing failed; fixed by moving product creation after successful parse.
+- Selenium tab crashed due to 384m memory limit; raised to 1024m.
+
+### Risks
+- Anti-bot protection on WB/Ozon may still intermittently block headless Selenium; monitor celery logs.
+- Higher memory footprint with parsing overlay (selenium 1024m, celery 512m).
+- Bulk import currently optimized for Wildberries share text; Ozon bulk import not yet supported.
+
+---
+
 ## 2026-06-21 (session 6)
 
 ### Task

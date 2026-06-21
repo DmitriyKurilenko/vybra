@@ -110,7 +110,7 @@ export default function App() {
           {tab === 'profile' && <Profile t={t} wide={wide} items={app.items} matches={app.matches} confidence={app.confidence} budget={app.budget} dark={dark} setDark={setDark} user={auth.user} onLogout={logout} />}
         </>
       )}
-      {sheet && <AddSheet t={t} wide={wide} onClose={() => setSheet(false)} onAdd={app.addItem} onDone={(msg) => { setSheet(false); showToast(msg); }} />}
+      {sheet && <AddSheet t={t} wide={wide} onClose={() => setSheet(false)} onAdd={app.addItem} onImportBulk={app.importBulk} onDone={(msg) => { setSheet(false); showToast(msg); }} />}
       {detail && <ItemSheet t={t} wide={wide} item={detail} onClose={() => setDetail(null)} onDelete={app.deleteItem} />}
       {toast && (
         <div style={{ position: 'fixed', left: '50%', bottom: 34, transform: 'translateX(-50%)', zIndex: 2000, background: t.ink, color: t.bg, padding: '11px 18px', borderRadius: 999, fontFamily: t.font, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 26px rgba(0,0,0,.25)', animation: 'hf-toast .25s ease-out' }}>{toast}</div>

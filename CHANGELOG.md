@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-06-21
+
+### Added
+- `front_redesign/src/screens/AddSheet.jsx`: third "Массово" tab for bulk import of Wildberries share text
+- `front_redesign/src/api/client.js`: `importFavorites` method calling `/api/wishlist/items/import-favorites-bulk`
+- `front_redesign/src/state/useApp.js`: `importBulk` action that reloads app state after bulk import
+- `wishlist/parsers.py`: `OzonParser.parse` implementation using JSON-LD/regex with Selenium fallback path
+- `wishlist/selenium_parser.py`: `_extract_ozon_from_page_source` helper and improved `parse_ozon_product_with_selenium`
+- `docker-compose.parsing.yml`: raised `selenium` memory limit to `1024m`, `celery` to `512m`, `SE_NODE_SESSION_TIMEOUT` to `300`, `shm_size` to `256m`
+
+### Changed
+- `wishlist/tasks.py::add_item_from_url`: uses `Product.objects.get_or_create` by `article_code`; no longer creates placeholder products when parsing fails
+- `wishlist/tasks.py::add_item_from_url`: enriches existing products only when fresh parsed data is available
+- `wishlist/parsers.py`: extended `WildberriesParser.extract_product_id` to support more WB URL formats
+- `wishlist/selenium_parser.py`: added page load/script/implicit timeouts to reduce Selenium session timeouts
+- Production is now deployed with parsing overlay (`docker-compose.prod.yml` + `docker-compose.parsing.yml`)
+
+### Fixed
+- Parsing (WB/Ozon) not working because `celery` and `selenium` containers were not running in production
+- Items not being added by URL due to missing worker and `Product.objects.create` causing `IntegrityError` on duplicate article codes
+- Selenium "tab crashed" errors due to insufficient container memory
+- Missing bulk import UI in SPA
+
 ## [0.4.0] - 2026-06-21
 
 ### Added
