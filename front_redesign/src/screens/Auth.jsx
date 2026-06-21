@@ -49,7 +49,7 @@ export function Auth({ t, wide, onLogin, onRegister }) {
   );
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: wide ? '8px 0' : '8px 22px 24px' }}>
+    <div className="hf-scroll" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: wide ? '8px 0' : '8px 0', minHeight: 0, overflowY: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 22 }}>
         <span style={{ fontFamily: t.font, fontWeight: 800, fontSize: 26, letterSpacing: '-0.03em', color: t.ink }}>Выбра</span>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.accent }} />

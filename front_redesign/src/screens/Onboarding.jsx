@@ -17,7 +17,7 @@ const ONB = [
 export function Onboarding({ t, step, wide, onNext, onBack, onSkip }) {
   const d = ONB[step - 1];
   const visual = (
-    <div style={{ position: 'relative', height: '100%', minHeight: wide ? 280 : 0 }}>
+    <div style={{ position: 'relative', height: '100%', minHeight: 0, flex: 1 }}>
       {step === 1 && <OnbPile t={t} />}
       {step === 2 && <OnbVS t={t} />}
       {step === 3 && <OnbElo t={t} />}
@@ -25,23 +25,23 @@ export function Onboarding({ t, step, wide, onNext, onBack, onSkip }) {
     </div>
   );
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: wide ? '8px 4px 4px' : '4px 22px 24px' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: wide ? '8px 4px 4px' : '4px 0 8px', minHeight: 0, overflow: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: '0 0 auto' }}>
         <span style={{ fontFamily: t.mono, fontSize: 11, color: t.ink3, letterSpacing: '0.06em' }}>{String(step).padStart(2, '0')} — 04</span>
         <button onClick={onSkip} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: t.font, fontSize: 12, color: t.ink3 }}>пропустить</button>
       </div>
 
       <div style={{ flex: 1, display: wide ? 'grid' : 'flex', flexDirection: 'column',
-        gridTemplateColumns: wide ? '1fr 1fr' : undefined, gap: wide ? 40 : 0, alignItems: wide ? 'center' : 'stretch' }}>
-        <div style={{ marginTop: wide ? 0 : 26, flex: '0 0 auto' }}>
+        gridTemplateColumns: wide ? '1fr 1fr' : undefined, gap: wide ? 40 : 0, alignItems: wide ? 'center' : 'stretch', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ marginTop: wide ? 0 : 18, flex: '0 0 auto' }}>
           <div style={{ fontFamily: t.mono, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.hi, marginBottom: 14 }}>{d.kicker}</div>
-          <div style={{ fontFamily: t.font, fontWeight: t.hWeight, fontSize: wide ? 44 : 32, lineHeight: 1.04, letterSpacing: t.tight, color: t.ink }}>{d.title}</div>
-          <div style={{ fontFamily: t.font, fontSize: wide ? 16 : 14, lineHeight: 1.5, color: t.ink2, marginTop: 16, maxWidth: 340 }}>{d.body}</div>
+          <div style={{ fontFamily: t.font, fontWeight: t.hWeight, fontSize: wide ? 44 : 28, lineHeight: 1.04, letterSpacing: t.tight, color: t.ink }}>{d.title}</div>
+          <div style={{ fontFamily: t.font, fontSize: wide ? 16 : 13.5, lineHeight: 1.5, color: t.ink2, marginTop: 14, maxWidth: 340 }}>{d.body}</div>
         </div>
-        <div style={{ flex: wide ? '0 0 auto' : 1, position: 'relative', margin: wide ? 0 : '18px 0' }}>{visual}</div>
+        <div style={{ flex: wide ? '0 0 auto' : 1, position: 'relative', margin: wide ? 0 : '14px 0', minHeight: 0 }}>{visual}</div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: '0 0 auto', marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: '0 0 auto', marginTop: 10 }}>
         <div style={{ display: 'flex', gap: 6 }}>
           {[1, 2, 3, 4].map((i) => (
             <span key={i} style={{ height: 4, borderRadius: 99, transition: 'width .3s, background .3s', width: i === step ? 22 : 6, background: i <= step ? t.ink : t.hair }} />
@@ -62,7 +62,7 @@ function OnbPile({ t }) {
   const cats = ['shoes', 'hoodie', 'lamp', 'book', 'mug', 'kettle'];
   const rot = [-7, 4, -3, 6, -5, 3];
   return (
-    <div style={{ position: 'relative', height: '100%', minHeight: 230 }}>
+    <div style={{ position: 'relative', height: '100%', minHeight: 0 }}>
       {cats.map((c, i) => (
         <div key={i} style={{ position: 'absolute', left: 6 + (i % 3) * 92, top: 6 + Math.floor(i / 3) * 108, width: 80, height: 96, transform: `rotate(${rot[i]}deg)`, boxShadow: `0 8px 18px -8px rgba(0,0,0,${t.dark ? 0.5 : 0.22})`, borderRadius: t.radiusSm }}>
           <CatBlock cat={c} t={t} iconSize={30} style={{ width: '100%', height: '100%' }} />
@@ -77,9 +77,9 @@ function OnbPile({ t }) {
 }
 function OnbVS({ t }) {
   return (
-    <div style={{ position: 'relative', height: '100%', minHeight: 200, display: 'flex', alignItems: 'center', gap: 12 }}>
-      <CatBlock cat="shoes" t={t} iconSize={44} style={{ flex: 1, height: 180, transform: 'rotate(-2deg)' }} store="WB" />
-      <CatBlock cat="headphones" t={t} iconSize={44} style={{ flex: 1, height: 180, transform: 'rotate(2deg)' }} store="OZON" />
+    <div style={{ position: 'relative', height: '100%', minHeight: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
+      <CatBlock cat="shoes" t={t} iconSize={44} style={{ flex: 1, height: '70%', transform: 'rotate(-2deg)' }} store="WB" />
+      <CatBlock cat="headphones" t={t} iconSize={44} style={{ flex: 1, height: '70%', transform: 'rotate(2deg)' }} store="OZON" />
       <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 46, height: 46, borderRadius: '50%', background: t.surface, color: t.ink, boxShadow: `inset 0 0 0 ${t.borderW}px ${t.ink}, 0 6px 16px -6px rgba(0,0,0,.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.font, fontWeight: t.hWeight, fontSize: 15, letterSpacing: '0.02em' }}>VS</div>
     </div>
   );

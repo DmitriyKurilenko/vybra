@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-21
+
+### Added
+- PWA support: installable app for iOS (Add to Home Screen) and Android (Install App)
+- `front_redesign/public/manifest.webmanifest` — web app manifest with name, icons, display mode, theme colors
+- `front_redesign/public/sw.js` — service worker with offline support (network-first navigation, stale-while-revalidate static, network-only API)
+- `front_redesign/assets/icon.svg` — SVG source for app icons (vermillion + two white cards)
+- `front_redesign/scripts/generate-icons.mjs` — `sharp`-based PNG icon generator (192/256/384/512/180/32)
+- `vybra/views.py`: `service_worker` view serving `/sw.js` with `Service-Worker-Allowed: /` header
+- `vybra/views.py`: `manifest` view serving `/manifest.webmanifest` with `application/manifest+json` content type
+- `vybra/urls.py`: `/sw.js` and `/manifest.webmanifest` routes
+- `front_redesign/index.html`: PWA meta tags (Apple, theme-color, viewport-fit=cover)
+- `front_redesign/src/main.jsx`: runtime manifest link injection and service worker registration
+- `AGENTS.md`: operating manual for agents (Mandatory Read Order, Validation Baseline, Update Ritual, Decision Rules)
+
+### Changed
+- `front_redesign/src/index.css`: `100vh` → `100dvh` via `--app-height` CSS variable with `@supports` fallback; added `--safe-*` env vars; `overflow: hidden` on html/body/#root
+- `front_redesign/src/App.jsx`: Frame and Splash use `height: var(--app-height)` with safe-area padding
+- `front_redesign/src/components/Shell.jsx`: mobile layout restructured — content and tab bar are siblings (tab bar always visible); `100vh` → `var(--app-height)`
+- `front_redesign/src/screens/Onboarding.jsx`: visual elements flex to available space instead of fixed `minHeight`
+- `front_redesign/src/screens/AddSheet.jsx`, `ItemSheet.jsx`: `position: absolute` → `position: fixed` with `maxHeight` and safe-area padding
+- `front_redesign/src/screens/Auth.jsx`: added `overflowY: auto` safety-net for small screens
+- `front_redesign/package.json`: `sharp` devDependency; `build` runs `generate-icons` before `vite build`
+- `front_redesign/index.html`: viewport now includes `viewport-fit=cover, user-scalable=no`
+
+### Fixed
+- Mobile viewport overflow: screens not fitting in visible height on iOS Safari due to `100vh` including address bar
+- Bottom tab bar pushed off-screen when content overflowed (was inside scrollable container with `position: sticky`)
+- Bottom sheets overlapping tab bar and lacking `maxHeight` constraints
+
 ## [0.3.0] - 2026-06-20
 
 ### Added

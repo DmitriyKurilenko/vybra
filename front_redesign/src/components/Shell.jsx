@@ -14,8 +14,8 @@ const NAV = [
 export function Shell({ t, wide, active, onNav, dark, setDark, onReset, children }) {
   if (wide) {
     return (
-      <div style={{ minHeight: '100vh', background: t.appBg, display: 'flex' }}>
-        <aside style={{ width: 244, flex: '0 0 auto', background: t.surface, boxShadow: `inset -1px 0 0 ${t.hair}`, display: 'flex', flexDirection: 'column', padding: '26px 18px', position: 'sticky', top: 0, height: '100vh' }}>
+      <div style={{ height: 'var(--app-height)', background: t.appBg, display: 'flex', overflow: 'hidden' }}>
+        <aside style={{ width: 244, flex: '0 0 auto', background: t.surface, boxShadow: `inset -1px 0 0 ${t.hair}`, display: 'flex', flexDirection: 'column', padding: '26px 18px', height: '100%', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 8px 26px' }}>
             <span style={{ fontFamily: t.font, fontWeight: 800, fontSize: 24, letterSpacing: '-0.03em', color: t.ink }}>Выбра</span>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.accent }} />
@@ -39,8 +39,8 @@ export function Shell({ t, wide, active, onNav, dark, setDark, onReset, children
             </button>
           </div>
         </aside>
-        <main style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center', padding: '34px 40px 48px' }}>
-          <div style={{ width: '100%', maxWidth: 860, display: 'flex', flexDirection: 'column', color: t.ink, fontFamily: t.font }}>
+        <main style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center', padding: '34px 40px 48px', overflow: 'hidden' }}>
+          <div style={{ width: '100%', maxWidth: 860, display: 'flex', flexDirection: 'column', color: t.ink, fontFamily: t.font, height: '100%', minHeight: 0 }}>
             {children}
           </div>
         </main>
@@ -48,22 +48,24 @@ export function Shell({ t, wide, active, onNav, dark, setDark, onReset, children
     );
   }
 
-  // Мобайл
+  // Мобайл: жёсткая структура — контент flex:1 со своим скроллом,
+  // таб-бар flex:0 0 auto ВНЕ scrollable-области. height вместо minHeight
+  // фиксит переполнение на iOS. Safe-area — отступы под системные элементы.
   return (
-    <div style={{ minHeight: '100vh', background: t.bg, color: t.ink, fontFamily: t.font, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: 480, width: '100%', margin: '0 auto' }}>
+    <div style={{ height: 'var(--app-height)', background: t.bg, color: t.ink, fontFamily: t.font, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingTop: 'var(--safe-top)', paddingLeft: 'var(--safe-left)', paddingRight: 'var(--safe-right)' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: 480, width: '100%', margin: '0 auto', overflow: 'hidden' }}>
         {children}
-        <div style={{ flex: '0 0 auto', display: 'flex', padding: '8px 8px calc(14px + env(safe-area-inset-bottom))', background: t.surface, boxShadow: `inset 0 1px 0 ${t.hairSoft}`, position: 'sticky', bottom: 0, zIndex: 6 }}>
-          {NAV.map((x) => {
-            const on = x.id === active;
-            return (
-              <button key={x.id} onClick={() => onNav(x.id)} style={{ flex: 1, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '6px 0', color: on ? t.ink : t.ink3 }}>
-                <Icon name={x.icon} size={22} sw={on ? 1.9 : 1.6} color={on ? t.ink : t.ink3} />
-                <span style={{ fontFamily: t.font, fontSize: 9.5, fontWeight: on ? 600 : 500 }}>{x.label}</span>
-              </button>
-            );
-          })}
-        </div>
+      </div>
+      <div style={{ flex: '0 0 auto', display: 'flex', padding: '8px 8px calc(14px + var(--safe-bottom))', background: t.surface, boxShadow: `inset 0 1px 0 ${t.hairSoft}`, zIndex: 6 }}>
+        {NAV.map((x) => {
+          const on = x.id === active;
+          return (
+            <button key={x.id} onClick={() => onNav(x.id)} style={{ flex: 1, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '6px 0', color: on ? t.ink : t.ink3 }}>
+              <Icon name={x.icon} size={22} sw={on ? 1.9 : 1.6} color={on ? t.ink : t.ink3} />
+              <span style={{ fontFamily: t.font, fontSize: 9.5, fontWeight: on ? 600 : 500 }}>{x.label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

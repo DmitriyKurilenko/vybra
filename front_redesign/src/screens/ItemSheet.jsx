@@ -72,11 +72,11 @@ export function ItemSheet({ t, wide, item, onClose, onDelete }) {
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 30, animation: 'hf-fade .18s ease-out' }} />
       {wide ? (
-        <div style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 31, width: 440, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', background: t.surface, borderRadius: t.radiusLg, padding: '18px 22px 24px', boxShadow: '0 24px 64px rgba(0,0,0,0.32)', animation: 'hf-pop-in .22s cubic-bezier(.2,.7,.3,1)' }}>
+        <div style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 31, width: 440, maxWidth: '92vw', maxHeight: 'calc(var(--app-height) - 48px)', overflowY: 'auto', background: t.surface, borderRadius: t.radiusLg, padding: '18px 22px 24px', boxShadow: '0 24px 64px rgba(0,0,0,0.32)', animation: 'hf-pop-in .22s cubic-bezier(.2,.7,.3,1)' }}>
           {body}
         </div>
       ) : (
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 31, maxHeight: '92%', overflowY: 'auto', background: t.surface, borderRadius: `${t.radiusLg}px ${t.radiusLg}px 0 0`, padding: '10px 20px 26px', boxShadow: '0 -12px 32px rgba(0,0,0,0.22)', animation: 'hf-up .24s cubic-bezier(.2,.7,.3,1)' }}>
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 31, maxHeight: 'calc(var(--app-height) - 48px)', overflowY: 'auto', background: t.surface, borderRadius: `${t.radiusLg}px ${t.radiusLg}px 0 0`, padding: '10px 20px calc(26px + var(--safe-bottom))', boxShadow: '0 -12px 32px rgba(0,0,0,0.22)', animation: 'hf-up .24s cubic-bezier(.2,.7,.3,1)' }}>
           <div style={{ width: 38, height: 4, borderRadius: 2, background: t.hair, margin: '2px auto 14px' }} />
           {body}
         </div>

@@ -1,12 +1,49 @@
 /* src/index.css — глобальные стили и анимации */
+
+/* Viewport-корректная высота приложения.
+   100vh на iOS включает адресную строку — контент переполняется.
+   dvh/svh — динамическая/короткая viewport-высота, корректно
+   учитывает chrome браузера. Прогрессивное улучшение через @supports. */
+:root {
+  --app-height: 100vh;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+@supports (height: 100dvh) {
+  :root { --app-height: 100dvh; }
+}
+
 :root { color-scheme: light dark; }
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; padding: 0; height: 100%; }
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+html {
+  height: var(--app-height);
+}
+
 body {
+  height: var(--app-height);
+  overflow: hidden;
+  overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  font-family: 'Manrope', system-ui, sans-serif;
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
+
+#root {
+  height: var(--app-height);
+  overflow: hidden;
+}
+
 input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
 

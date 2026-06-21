@@ -6,7 +6,8 @@
   "description": "Выбра — попарное сравнение желаний с ELO-рейтингом и бюджетом",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "generate-icons": "node scripts/generate-icons.mjs",
+    "build": "npm run generate-icons && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
+    "sharp": "^0.33.5",
     "vite": "^5.4.0"
   }
 }

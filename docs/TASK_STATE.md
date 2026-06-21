@@ -3,6 +3,27 @@
 ## Active
 
 ## Done
+- [x] Fix mobile viewport overflow — screens not fitting in visible height
+  - `front_redesign/src/index.css`: `--app-height` (100dvh with 100vh fallback), `--safe-*` env vars, `overflow: hidden` on html/body/#root
+  - `front_redesign/src/App.jsx`: Frame and Splash use `height: var(--app-height)` instead of `minHeight: 100vh`
+  - `front_redesign/src/components/Shell.jsx`: mobile layout restructured — content (`flex: 1, overflow: hidden`) and tab bar (`flex: 0 0 auto`) are siblings, not nested; tab bar always visible
+  - `front_redesign/src/screens/Onboarding.jsx`: removed fixed `minHeight: 230/200` from visual elements; flex to available space
+  - `front_redesign/src/screens/Auth.jsx`: added `overflowY: auto` safety-net for small screens
+  - `front_redesign/src/screens/Connect.jsx`: removed duplicate horizontal padding (Frame provides it)
+  - `front_redesign/src/screens/AddSheet.jsx`: `position: fixed` + `maxHeight: calc(var(--app-height) - 48px)` + `paddingBottom: calc(26px + var(--safe-bottom))`
+  - `front_redesign/src/screens/ItemSheet.jsx`: same fixes as AddSheet
+- [x] Add PWA support — installable app for iOS and Android
+  - `front_redesign/assets/icon.svg`: SVG source (vermillion bg + two white cards)
+  - `front_redesign/scripts/generate-icons.mjs`: sharp-based PNG generator (192/256/384/512/180/32)
+  - `front_redesign/package.json`: `sharp` devDep, `generate-icons` script, `build` runs icons before vite build
+  - `front_redesign/public/manifest.webmanifest`: name, start_url, scope, display, icons
+  - `front_redesign/public/sw.js`: network-first navigation, stale-while-revalidate static, network-only API
+  - `front_redesign/index.html`: viewport-fit=cover, user-scalable=no, Apple meta tags, theme-color
+  - `front_redesign/src/main.jsx`: runtime manifest link injection, SW registration in production
+  - `vybra/views.py`: `service_worker` and `manifest` views with correct Content-Type and Service-Worker-Allowed header
+  - `vybra/urls.py`: `/sw.js` and `/manifest.webmanifest` routes
+  - `front_redesign/.gitignore`: `public/icons` (build artifact)
+- [x] Create `AGENTS.md` — operating manual for agents
 - [x] Replace server-rendered templates with SPA frontend (front_redesign)
   - Added `front_redesign/` — Vite-based SPA with src/, vite.config.js, package.json
   - Multi-stage Dockerfile: Node stage builds SPA, Python stage packages it

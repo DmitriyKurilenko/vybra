@@ -1,5 +1,41 @@
 # Release Notes
 
+## v0.4.0 — Mobile viewport fix + PWA installable app
+
+**Two major improvements: mobile layout and installability. No breaking changes to the API.**
+
+### What changed
+
+#### Mobile viewport fix
+- All screens now fit within the visible viewport on iOS and Android — no more page-level scroll to reach off-screen elements
+- Bottom tab bar is always visible and accessible, regardless of content height
+- Bottom sheets (add item, item details) use `position: fixed` with `maxHeight` and respect safe-area insets
+- Onboarding visual elements flex to available space instead of using fixed heights
+- `100vh` replaced with `100dvh` (dynamic viewport height) — correctly handles iOS Safari address bar
+- Safe-area insets honored for notched devices (status bar, home indicator)
+
+#### PWA — installable app
+- Vybra is now installable as a standalone app on iOS (Add to Home Screen) and Android (Install App prompt)
+- Web manifest at `/manifest.webmanifest` with app name, icons, display mode, theme colors
+- Service worker at `/sw.js` provides offline support: SPA shell and cached assets load without network
+- App icons generated at build time from a single SVG source (vermillion + two white cards motif)
+- Apple PWA meta tags: `apple-mobile-web-app-capable`, status bar style, app title, touch icon
+- Theme color adapts to system preference (light/dark)
+
+### Action required for operators
+- **Rebuild the image:** `docker compose build` — the build now generates icons via `sharp` before `vite build`
+- **No URL changes:** `/sw.js` and `/manifest.webmanifest` are new Django routes; existing routes unchanged
+- **No new env vars:** PWA works out of the box
+
+### Internal
+- `front_redesign/src/index.css`: `--app-height`, `--safe-*` CSS variables, overflow lock
+- `front_redesign/src/App.jsx`, `Shell.jsx`, screens: `height: var(--app-height)` instead of `minHeight: 100vh`
+- `front_redesign/assets/icon.svg`, `scripts/generate-icons.mjs`: icon generation pipeline
+- `front_redesign/public/manifest.webmanifest`, `public/sw.js`: PWA assets
+- `front_redesign/src/main.jsx`: runtime manifest injection, SW registration
+- `vybra/views.py`: `service_worker`, `manifest` views
+- `vybra/urls.py`: `/sw.js`, `/manifest.webmanifest` routes
+
 ## v0.3.0 — SPA Frontend (front_redesign)
 
 **Major frontend architecture change. No breaking changes to the API.**

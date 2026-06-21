@@ -39,13 +39,13 @@ export function Connect({ t, wide, onDone }) {
   ];
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: wide ? '6px 0 16px' : '6px 20px 12px', flex: '0 0 auto' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ padding: wide ? '6px 0 16px' : '6px 0 12px', flex: '0 0 auto' }}>
         <div style={{ fontFamily: t.font, fontWeight: t.hWeight, fontSize: wide ? 32 : 25, lineHeight: 1.04, letterSpacing: t.tight, color: t.ink }}>Подключи источники</div>
         <div style={{ fontFamily: t.font, fontSize: wide ? 14 : 12, color: t.ink2, marginTop: 6 }}>Импортируй избранное Wildberries или начни с демо.</div>
       </div>
 
-      <div className="hf-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: wide ? '0 0 8px' : '0 20px 8px' }}>
+      <div className="hf-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: wide ? '0 0 8px' : '0 0 8px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: wide ? '1fr 1fr 1fr' : '1fr', gap: 10 }}>
           {sources.map((s) => {
             const open = panel === s.id;
@@ -109,7 +109,7 @@ export function Connect({ t, wide, onDone }) {
         )}
       </div>
 
-      <div style={{ padding: wide ? '12px 0 4px' : '12px 20px 22px', flex: '0 0 auto', maxWidth: wide ? 360 : 'none' }}>
+      <div style={{ padding: wide ? '12px 0 4px' : '12px 0 22px', flex: '0 0 auto', maxWidth: wide ? 360 : 'none' }}>
         <Btn t={t} variant="primary" full onClick={onDone} disabled={busy}>
           {result ? 'Начать сравнивать' : 'Продолжить'} <Icon name="arrow" size={18} color={t.bg} />
         </Btn>

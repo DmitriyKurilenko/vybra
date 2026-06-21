@@ -1,5 +1,106 @@
 # Development Log
 
+## 2026-06-21 (session 6)
+
+### Task
+1. Fix mobile viewport overflow — screens not fitting in visible height, elements accessible only via scroll.
+2. Add PWA support — installable app for iOS and Android.
+3. Create `AGENTS.md` operating manual.
+
+### Files changed
+- `AGENTS.md` (new)
+  - Mandatory Read Order, Validation Baseline, Update Ritual, Decision Rules, Architecture Snapshot, Conventions
+- `front_redesign/src/index.css`
+  - Added `--app-height: 100dvh` with `@supports` fallback to `100vh`
+  - Added `--safe-top/bottom/left/right` mapped to `env(safe-area-inset-*)`
+  - `html`, `body`, `#root`: `height: var(--app-height)`, `overflow: hidden`, `overscroll-behavior: none`
+  - `-webkit-tap-highlight-color: transparent`, `touch-action: manipulation`
+- `front_redesign/src/App.jsx`
+  - `Frame`: `minHeight: 100vh` → `height: var(--app-height)`, `overflow: hidden`, safe-area padding
+  - `Splash`: `minHeight: 100vh` → `height: var(--app-height)`
+- `front_redesign/src/components/Shell.jsx`
+  - Desktop: `minHeight: 100vh` → `height: var(--app-height)`, `overflow: hidden`
+  - Mobile: restructured — content (`flex: 1, overflow: hidden`) and tab bar (`flex: 0 0 auto`) are siblings
+  - Tab bar: `position: sticky` inside scrollable → `flex: 0 0 auto` outside scrollable
+  - Tab bar padding: `calc(14px + env(safe-area-inset-bottom))` → `calc(14px + var(--safe-bottom))`
+  - Outer container: added `paddingTop/Left/Right: var(--safe-*)`
+- `front_redesign/src/screens/Onboarding.jsx`
+  - Visual container: `minHeight: wide ? 280 : 0` → `minHeight: 0, flex: 1`
+  - `OnbPile`: `minHeight: 230` → `minHeight: 0`
+  - `OnbVS`: `minHeight: 200` → `minHeight: 0`; card heights `180` → `'70%'`
+  - Font sizes slightly reduced for small screens: 32→28 (title), 14→13.5 (body)
+  - Top padding: `22px` → `0` (Frame provides horizontal padding)
+- `front_redesign/src/screens/Auth.jsx`
+  - Added `overflowY: auto` safety-net for small screens
+  - Removed duplicate horizontal padding (Frame provides it)
+- `front_redesign/src/screens/Connect.jsx`
+  - Removed duplicate horizontal padding (Frame provides it)
+- `front_redesign/src/screens/AddSheet.jsx`
+  - Mobile sheet: `position: absolute` → `position: fixed`
+  - Added `maxHeight: calc(var(--app-height) - 48px)`, `overflowY: auto`
+  - `paddingBottom: 26px` → `calc(26px + var(--safe-bottom))`
+  - Desktop dialog: `maxHeight: 90vh` → `calc(var(--app-height) - 48px)`
+- `front_redesign/src/screens/ItemSheet.jsx`
+  - Same fixes as AddSheet
+- `front_redesign/assets/icon.svg` (new)
+  - SVG source: 512×512, vermillion (#FF4D2E) background, two white rounded rectangles (pairwise comparison motif)
+- `front_redesign/scripts/generate-icons.mjs` (new)
+  - Node script using `sharp` to render SVG to 6 PNG sizes
+- `front_redesign/package.json`
+  - Added `sharp` devDependency
+  - Added `generate-icons` script
+  - `build`: `vite build` → `npm run generate-icons && vite build`
+- `front_redesign/.gitignore`
+  - Added `public/icons` (build artifact)
+- `front_redesign/public/manifest.webmanifest` (new)
+  - Name, short_name, description, lang, start_url, scope, id, display, orientation, theme_color, background_color, categories, 4 icons (192/256/384/512, purpose "any maskable")
+- `front_redesign/public/sw.js` (new)
+  - Install: cache SPA shell `/app/`
+  - Activate: clean old caches, `clients.claim()`
+  - Fetch: network-first for navigation (offline fallback), stale-while-revalidate for `/static/`, network-only for `/api/`
+- `front_redesign/index.html`
+  - `viewport`: added `viewport-fit=cover, user-scalable=no`
+  - Added `<meta name="description">`, theme-color (light/dark), Apple PWA meta tags, apple-touch-icon, favicon
+  - Removed `<link rel="manifest">` (injected at runtime to prevent Vite URL rewriting)
+- `front_redesign/src/main.jsx`
+  - Runtime injection of `<link rel="manifest" href="/manifest.webmanifest">`
+  - SW registration in production only (`import.meta.env.PROD`), on `window.load`
+- `vybra/views.py`
+  - Added `_serve_dist_file` helper
+  - Added `service_worker` view: serves `dist/sw.js` with `Content-Type: application/javascript` and `Service-Worker-Allowed: /`
+  - Added `manifest` view: serves `dist/manifest.webmanifest` with `Content-Type: application/manifest+json`
+- `vybra/urls.py`
+  - Added `path('sw.js', service_worker, name='sw')`
+  - Added `path('manifest.webmanifest', manifest, name='manifest')`
+
+### Validation
+- `docker compose down` — passed
+- `docker compose up -d --build` — passed (icons generated, vite build OK, collectstatic OK)
+- `docker compose run --rm web python manage.py check` — passed (0 issues)
+- HTTP checks:
+  - `curl -sI http://localhost:8000/` → 200
+  - `curl -sI http://localhost:8000/app/` → 200
+  - `curl -sI http://localhost:8000/api/docs` → 200
+  - `curl -sI http://localhost:8000/sw.js` → 200, `application/javascript`, `Service-Worker-Allowed: /`
+  - `curl -sI http://localhost:8000/manifest.webmanifest` → 200, `application/manifest+json`
+  - `curl -sI http://localhost:8000/static/spa/icons/icon-192.png` → 200, `image/png`
+  - `curl -sI http://localhost:8000/static/spa/icons/icon-512.png` → 200, `image/png`
+  - `curl -sI http://localhost:8000/static/spa/icons/apple-touch-icon.png` → 200, `image/png`
+  - `curl -sI http://localhost:8000/static/spa/icons/favicon-32.png` → 200, `image/png`
+  - manifest JSON validated via `python3 -m json.tool` — valid
+
+### Issues found and fixed during validation
+- **Vite URL rewriting**: Vite with `base: '/static/spa/'` rewrote `<link rel="manifest" href="/manifest.webmanifest">` in index.html to `href="/static/spa/manifest.webmanifest"`. WhiteNoise served it with `Content-Type: application/octet-stream` (wrong). Fixed by removing the `<link>` from HTML and injecting it at runtime via JS in `main.jsx`, pointing to `/manifest.webmanifest` (Django view with correct Content-Type).
+
+### Risks
+- `dvh` requires iOS 15.4+ / Chrome 108+; older browsers fall back to `vh` via `@supports` (may still overflow on old iOS Safari)
+- `sharp` reports 2 npm vulnerabilities (1 moderate, 1 high) during `npm install` — these are in sharp's transitive deps and don't affect the build output; sharp is a devDependency, not shipped to runtime
+- iOS keyboard may overlap bottom sheets; mitigated by `maxHeight` + `overflowY: auto` inside sheets
+- OAuth in PWA standalone mode opens an in-app browser; callback redirects to `/app` and works correctly
+- `public/icons/` is gitignored — if someone builds without `npm run generate-icons`, icons will be missing; the `build` script chain prevents this
+
+---
+
 ## 2026-06-20 (session 5)
 
 ### Files changed

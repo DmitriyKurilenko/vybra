@@ -49,16 +49,19 @@ export default function App() {
   }
 
   // Обёртка для экранов вне Shell (онбординг / вход / подключение).
+  // height: var(--app-height) + overflow: hidden — фиксит переполнение
+  // на iOS, где 100vh включает адресную строку. Safe-area — отступы под
+  // статус-бар и home-indicator при viewport-fit=cover.
   const Frame = ({ children }) => (
-    <div style={{ minHeight: '100vh', background: t.bg, color: t.ink, fontFamily: t.font, display: 'flex', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: wide ? 860 : 480, display: 'flex', flexDirection: 'column', padding: wide ? '40px 40px' : '8px 0', minHeight: '100vh' }}>
+    <div style={{ height: 'var(--app-height)', background: t.bg, color: t.ink, fontFamily: t.font, display: 'flex', justifyContent: 'center', overflow: 'hidden', paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)', paddingLeft: 'var(--safe-left)', paddingRight: 'var(--safe-right)' }}>
+      <div style={{ width: '100%', maxWidth: wide ? 860 : 480, display: 'flex', flexDirection: 'column', padding: wide ? '40px 40px' : '8px 20px', height: '100%', minHeight: 0, overflow: 'hidden' }}>
         {children}
       </div>
     </div>
   );
 
   const Splash = (
-    <div style={{ minHeight: '100vh', background: t.bg, color: t.ink3, display: 'grid', placeItems: 'center', fontFamily: t.mono, fontSize: 13 }}>загрузка…</div>
+    <div style={{ height: 'var(--app-height)', background: t.bg, color: t.ink3, display: 'grid', placeItems: 'center', fontFamily: t.mono, fontSize: 13 }}>загрузка…</div>
   );
 
   // — Проверка сессии —

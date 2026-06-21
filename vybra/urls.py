@@ -13,7 +13,7 @@ from ninja import NinjaAPI
 
 from wishlist.api import router as wishlist_router
 from authentication.api import router as auth_router
-from .views import spa_index
+from .views import spa_index, service_worker, manifest
 
 # Create main API instance
 api = NinjaAPI(title="Vybra API", version="1.0.0")
@@ -27,6 +27,9 @@ urlpatterns = [
     path('api/', api.urls),
     path('', include('authentication.urls')),  # Лендинг на «/» + Google OAuth
     path('', include('wishlist.urls')),         # Legal pages
+    # PWA: service worker со scope "/" и веб-манифест.
+    path('sw.js', service_worker, name='sw'),
+    path('manifest.webmanifest', manifest, name='manifest'),
     # Приложение (SPA) под /app и любыми вложенными путями.
     re_path(r'^app(?:/.*)?$', spa_index, name='spa'),
 ]

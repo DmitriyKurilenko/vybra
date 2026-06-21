@@ -8,3 +8,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 );
+
+const manifestLink = document.createElement('link');
+manifestLink.rel = 'manifest';
+manifestLink.href = '/manifest.webmanifest';
+document.head.appendChild(manifestLink);
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  });
+}
