@@ -1,0 +1,14 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [
+  "backups",
+  "front_redesign/dist",
+  "front_redesign/node_modules",
+  "media",
+  "node_modules",
+  "staticfiles",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

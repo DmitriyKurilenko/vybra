@@ -122,3 +122,25 @@ Add full PWA infrastructure:
 - `public/icons/` is gitignored — icons are a build artifact, regenerated from `assets/icon.svg` on every build
 - The Django views for `/sw.js` and `/manifest.webmanifest` read from `front_redesign/dist/`; if the frontend build hasn't run, they return 500 with a clear error message
 - `viewport-fit=cover` + `user-scalable=no` in index.html enables full-bleed display with safe-area insets on notched devices
+
+## DEC-007: Docker-only validation gates with Ruff and Playwright
+
+**Date:** 2026-06-23
+**Status:** Accepted
+
+### Context
+The validation baseline checked Docker startup, Django system checks, targeted tests, and HTTP smoke checks, but had no mandatory Python static analysis gate and no real-browser SPA flow. This allowed unused imports, bare `except` blocks, and frontend/API integration regressions to pass local validation.
+
+### Decision
+Add two local Docker-only validation gates under the `tools` compose profile.
+- `lint`: builds `Dockerfile.dev`, installs `requirements-dev.txt`, and runs `ruff check .`
+- `e2e`: uses the official Playwright image `mcr.microsoft.com/playwright:v1.61.0-jammy`, runs `npm ci` in `front_redesign/`, and executes `npm run test:e2e`
+- The smoke scenario registers a unique test user through the UI, passes the source-connect step, creates a manual wishlist item, and verifies it on screen
+- The Playwright package version and Docker image tag must stay identical
+- Dev tooling must stay out of the Python runtime image; Ruff lives only in `Dockerfile.dev`, and Playwright lives only in the frontend builder/e2e containers
+
+### Consequences
+- Full validation now requires `docker compose --profile tools run --rm lint` and `docker compose --profile tools run --rm e2e`
+- The dev `web` service has a healthcheck so e2e can wait for migrations and Gunicorn
+- `front_redesign/package-lock.json` is committed and the frontend Docker build uses `npm ci`
+- Playwright validates the production-like Django `/app/` delivery path instead of a separate Vite preview server

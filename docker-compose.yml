@@ -49,7 +49,37 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  lint:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    profiles: [tools]
+    command: ["ruff", "check", "."]
+    volumes:
+      - .:/app
+
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.61.0-jammy
+    profiles: [tools]
+    working_dir: /app
+    command: sh -c "npm ci && npm run test:e2e; status=$$?; if [ $$status -eq 0 ]; then rm -rf test-results; fi; exit $$status"
+    environment:
+      - PLAYWRIGHT_BASE_URL=http://web:8000
+    volumes:
+      - ./front_redesign:/app
+      - pw_node_modules:/app/node_modules
+    depends_on:
+      web:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   media_data:
+  pw_node_modules:

@@ -11,15 +11,13 @@ from django.db import models, transaction
 from django.core.cache import cache
 from django.conf import settings
 from django.utils import timezone
+from django.contrib.auth.models import User
 from typing import List
 from datetime import timedelta
-
-logger = logging.getLogger(__name__)
 
 from .models import Item, Comparison, PriceHistory, Product, ImportRun
 from .serializers import serialize_item
 from .ninja_utils import JWTAuth, ValidationError, NotFoundError
-from django.contrib.auth.models import User
 from .schemas import (
     ItemSchema,
     ItemCreateSchema,
@@ -30,7 +28,6 @@ from .schemas import (
     BudgetSchema,
     BudgetUpdateSchema,
     DashboardSchema,
-    DashboardStatsSchema,
     TaskResponseSchema,
     TaskStatusSchema,
     ImportRunSchema,
@@ -45,6 +42,8 @@ from .schemas import (
     MessageResponseSchema,
     MessageWithCountSchema,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # Router with JWT authentication

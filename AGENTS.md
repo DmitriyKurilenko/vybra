@@ -26,9 +26,11 @@
 1. `docker compose down`
 2. `docker compose up -d --build`
 3. `docker compose run --rm web python manage.py check`
-4. Targeted-тесты для затронутых модулей (если тестов нет —
+4. `docker compose --profile tools run --rm lint`
+5. Targeted-тесты для затронутых модулей (если тестов нет —
    `python manage.py check` + ручная HTTP-проверка затронутых страниц).
-5. Ручная проверка HTTP/рендера затронутых страниц:
+6. `docker compose --profile tools run --rm e2e`
+7. Ручная проверка HTTP/рендера затронутых страниц:
    - `curl -sI http://localhost:8000/` → 200
    - `curl -sI http://localhost:8000/app/` → 200
    - `curl -sI http://localhost:8000/api/docs` → 200
@@ -36,6 +38,8 @@
 
 Проект работает только в Docker. Локальный запуск без Docker не гарантирует
 повторяемости и не принимается как валидация.
+Ruff и Playwright — обязательные гейты: зелёный `manage.py check` без них
+не считается полным baseline.
 
 ## Update Ritual
 

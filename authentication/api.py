@@ -13,8 +13,6 @@ from django.http import JsonResponse
 import jwt
 from django.conf import settings
 
-logger = logging.getLogger(__name__)
-
 from wishlist.ninja_utils import JWTAuth, ValidationError, AuthenticationError
 from .schemas import (
     RegisterSchema,
@@ -24,6 +22,8 @@ from .schemas import (
     RefreshTokenSchema,
     AuthMessageSchema,
 )
+
+logger = logging.getLogger(__name__)
 
 
 router = Router(tags=["Authentication"])

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-23
+
+### Added
+- Docker-only Ruff validation gate: `docker compose --profile tools run --rm lint`
+- Docker-only Playwright e2e gate: `docker compose --profile tools run --rm e2e`
+- `Dockerfile.dev` for dev-only Python tooling
+- `front_redesign/playwright.config.js` and a Chromium smoke flow for UI registration plus manual wishlist item creation
+- `front_redesign/package-lock.json` for reproducible frontend installs
+
+### Changed
+- Mandatory Validation Baseline now includes Ruff and Playwright gates
+- Frontend Docker build now uses `npm ci` with `package-lock.json`
+- Dev `web` service now has a healthcheck for e2e orchestration
+
+### Fixed
+- Added missing `wishlist` migration for Product auto index renames detected by `makemigrations --check --dry-run`
+
 ## [0.4.1] - 2026-06-21
 
 ### Added

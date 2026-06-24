@@ -62,6 +62,9 @@ celerybeat.pid
 .pytest_cache/
 .coverage
 htmlcov/
+front_redesign/blob-report/
+front_redesign/playwright-report/
+front_redesign/test-results/
 
 # Node (for frontend tools if needed)
 node_modules/

@@ -1,5 +1,19 @@
 # Release Notes
 
+## v0.5.0 — Validation gates
+
+**Ruff and Playwright are now part of the local Docker validation baseline.**
+
+### What changed
+- Added `docker compose --profile tools run --rm lint` for Python static analysis with Ruff
+- Added `docker compose --profile tools run --rm e2e` for Chromium e2e validation of the SPA through Django `/app/`
+- The e2e smoke flow registers a unique test user through the UI and creates a manual wishlist item
+- Frontend Docker build now uses `npm ci` and committed `front_redesign/package-lock.json`
+
+### Action required for developers
+- Run the full AGENTS.md baseline before closing non-trivial tasks
+- Keep `@playwright/test` and `mcr.microsoft.com/playwright:vX.Y.Z-jammy` on the same version
+
 ## v0.4.1 — Parsing fix + bulk import
 
 **Fixed WB/Ozon parsing, items-by-link flow, and added bulk import UI.**

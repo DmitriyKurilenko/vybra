@@ -2,6 +2,11 @@
 
 ## Resolved
 
+### Pending Product index rename migration warning
+**Symptom:** `python manage.py migrate` logged that `wishlist` models had changes not reflected in migrations.
+**Cause:** Auto-generated Product index names in `wishlist/models.py` no longer matched migration state.
+**Fix:** Added `wishlist/migrations/0007_rename_product_auto_indexes.py` with explicit `RenameIndex` operations.
+
 ### Traefik router not registered due to missing network
 **Symptom:** 404 from Traefik after deployment
 **Cause:** `web` service had Traefik labels but was not attached to the `traefik` external network
@@ -56,3 +61,4 @@
 
 ## Open
 - Ozon and WB may still be blocked by anti-bot measures in headless mode; monitoring required.
+- `front_redesign npm ci` reports 2 audit warnings (1 moderate, 1 high) in dev/build dependencies; not observed in Python runtime image, but dependency remediation should be reviewed separately.

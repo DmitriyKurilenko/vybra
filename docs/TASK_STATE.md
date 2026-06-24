@@ -4,6 +4,13 @@
 - None
 
 ## Done
+- [x] Release v0.5.0 — Ruff and Playwright validation gates
+  - `Dockerfile.dev`: dev-only Python tooling image for `ruff check .`
+  - `docker-compose.yml`: `lint` and `e2e` services under `profiles: [tools]`
+  - `front_redesign/playwright.config.js` and `front_redesign/e2e/smoke.spec.js`: Chromium smoke flow through UI registration and manual item creation
+  - `front_redesign/package-lock.json` and Dockerfile `npm ci` for reproducible frontend installs
+  - `wishlist/migrations/0007_rename_product_auto_indexes.py`: fixed pending Product index rename migration warning
+  - `AGENTS.md`: Ruff and Playwright added to mandatory Validation Baseline
 - [x] Fix WB/Ozon parsing in production
   - Started parsing overlay (`celery`, `selenium`, `celery-beat`)
   - Raised `selenium` memory limit to 1024m and `celery` to 512m

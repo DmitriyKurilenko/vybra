@@ -90,7 +90,7 @@ class Command(BaseCommand):
                         continue
 
                     if not result or not result.get('name'):
-                        self.stdout.write(self.style.ERROR(f'  ❌ Не удалось получить название'))
+                        self.stdout.write(self.style.ERROR('  ❌ Не удалось получить название'))
                         error_count += 1
                         continue
 

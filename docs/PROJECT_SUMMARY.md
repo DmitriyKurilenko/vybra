@@ -3,10 +3,10 @@
 | Поле | Значение |
 |---|---|
 | Название | Vybra |
-| Версия | 0.3.0 |
-| Дата сводки | 2026-06-20 |
+| Версия | 0.5.0 |
+| Дата сводки | 2026-06-23 |
 | Production URL | https://vybra.prvms.ru |
-| Статус | Production-ready продукт для портфолио; актуальная инфраструктурная версия v0.3.0 |
+| Статус | Production-ready продукт для портфолио; актуальная инфраструктурная версия v0.5.0 |
 | Язык продукта | Русский (`LANGUAGE_CODE = ru-ru`, `TIME_ZONE = Europe/Moscow`) |
 | Тип проекта | Web-приложение для сравнения и ранжирования товаров из wishlist |
 
@@ -28,7 +28,7 @@ Vybra — это веб-приложение для осознанного вы�
 | Cache / broker | Redis 7 Alpine | Кэш парсинга, кэш пары сравнения и брокер/результат backend для Celery. |
 | Async jobs | Celery `>=5.3.4`, Celery Beat | Фоновый парсинг, импорт избранного, обновление цен, очистка старой истории цен и nightly recovery. |
 | Парсинг | requests, BeautifulSoup, lxml, Selenium 4, standalone Chromium | Быстрый API-парсинг Wildberries с Selenium fallback для антибот-защиты и динамических страниц. |
-| Frontend | Vite + Vanilla JS SPA (`front_redesign/`), Alpine.js, Tailwind CSS, served by WhiteNoise under `/static/spa/` | Decoupled SPA with client-side routing; landing page remains server-rendered for SEO. |
+| Frontend | Vite + React 18 SPA (`front_redesign/`), served by WhiteNoise under `/static/spa/` | Decoupled SPA with client-side routing; landing page remains server-rendered for SEO. |
 | Auth | JWT через PyJWT, HttpOnly cookies, optional Google OAuth2 | Stateless API-auth для frontend и защищённые cookie-сессии; Google OAuth включается переменными окружения. |
 | Static files | WhiteNoise `>=6.7.0`, Brotli | Сжатая manifest-статика без отдельного nginx в контейнере приложения. |
 | Runtime | Gunicorn `>=21.2.0`, Docker, Docker Compose | Предсказуемый production runtime, healthchecks, лимиты CPU/RAM и воспроизводимый деплой. |
@@ -105,7 +105,7 @@ HTTPS request
 | Database persistence | Named volume `postgres_data:/var/lib/postgresql/data`; отдельный `media_data` для `/app/media`. |
 | Deploy | `deploy.sh` проверяет `.env`, Docker, `vm.overcommit_memory`, наличие сети и контейнера Traefik, делает `git pull --ff-only`, backup, build и `docker compose up -d`. |
 | Backups | Перед деплоем `deploy.sh` делает `pg_dump | gzip` в `BACKUP_DIR`, хранит `BACKUP_KEEP` последних файлов. |
-| CI/CD | Workflow-файлы в репозитории не обнаружены; автоматизация поставки реализована через root-level `deploy.sh`. |
+| CI/CD | Workflow-файлы в репозитории не обнаружены; автоматизация поставки реализована через root-level `deploy.sh`; локальный baseline включает Docker-only gates `lint` (Ruff) и `e2e` (Playwright) под compose profile `tools`. |
 | Monitoring / health | Docker healthchecks для PostgreSQL, Redis, web и Selenium; приложение логирует в stdout с настраиваемыми `LOG_LEVEL` и `DJANGO_LOG_LEVEL`. |
 | Static build | Tailwind собирается командой `npm run build:css`; Django `collectstatic` выполняется во время Docker build. |
 

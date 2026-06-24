@@ -241,7 +241,7 @@ class Command(BaseCommand):
                     )
 
                     # Создаем Item для demo пользователя
-                    item = Item.objects.create(
+                    Item.objects.create(
                         user=demo_user,
                         product=product,
                         elo_rating=1500 + random.randint(-200, 200),  # Случайный начальный рейтинг

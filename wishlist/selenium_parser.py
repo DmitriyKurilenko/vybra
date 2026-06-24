@@ -9,7 +9,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, SessionNotCreatedException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from decimal import Decimal
 import time
 import logging
@@ -1225,7 +1224,7 @@ class SeleniumWildberriesParser:
                             # Убираем разделитель " / "
                             product_name = product_name.replace(' / ', '').strip()
                             name = f"{brand} {product_name}" if brand else product_name
-                        except:
+                        except Exception:
                             name = f"Товар {article_code}"
                         name = self._clean_extracted_name(name, article_code=article_code) or f"Товар {article_code}"
 
@@ -1238,7 +1237,7 @@ class SeleniumWildberriesParser:
                             price_clean = re.sub(r'[^\d]', '', price_text)
                             if price_clean:
                                 price = Decimal(price_clean)
-                        except:
+                        except Exception:
                             pass
 
                         # Изображение
@@ -1251,7 +1250,7 @@ class SeleniumWildberriesParser:
                                 or img_elem.get_attribute('data-src-pb')
                             )
                             image_url = self._normalize_image_url(image_url)
-                        except:
+                        except Exception:
                             pass
 
                         # Добавляем товар

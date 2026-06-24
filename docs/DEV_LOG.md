@@ -1,5 +1,88 @@
 # Development Log
 
+## 2026-06-23 (session 8)
+
+### Version
+0.5.0
+
+### Task
+Add Docker-only Ruff and Playwright validation gates and make them part of the project validation ritual.
+
+### Files changed
+- `Dockerfile`
+  - Frontend builder now copies `front_redesign/package*.json` and uses `npm ci`
+- `VERSION`
+  - Bumped from `0.4.1` to `0.5.0`
+- `Dockerfile.dev` (new)
+  - Dev-only Python tooling image based on `python:3.11-slim`
+  - Installs `requirements-dev.txt` and runs `ruff check .`
+- `requirements-dev.txt`
+  - Added pinned `ruff==0.14.8`
+- `pyproject.toml` (new)
+  - Ruff target version, line length, excludes, and baseline rules (`E4`, `E7`, `E9`, `F`)
+- `docker-compose.yml`
+  - Added healthcheck to dev `web`
+  - Added `lint` and `e2e` services under `profiles: [tools]`
+  - Added `pw_node_modules` volume
+- `front_redesign/package.json`
+  - Added `@playwright/test` `1.61.0`
+  - Added `test:e2e` script
+- `front_redesign/package-lock.json` (new)
+  - Reproducible npm dependency lock for SPA/e2e installs
+- `front_redesign/playwright.config.js` (new)
+  - Chromium project, base URL from `PLAYWRIGHT_BASE_URL`, HTML report disabled from auto-open
+- `front_redesign/e2e/smoke.spec.js` (new)
+  - Register a unique user through UI, pass source-connect step, open wishlist, add manual item, verify list update
+- `wishlist/migrations/0007_rename_product_auto_indexes.py` (new)
+  - Added pending Product index rename migration detected during final baseline
+- `.gitignore`
+  - Ignored Playwright reports and test-results
+- Python cleanup required by Ruff:
+  - `authentication/admin.py`
+  - `authentication/api.py`
+  - `wishlist/api.py`
+  - `wishlist/management/commands/create_test_users.py`
+  - `wishlist/management/commands/reparse_products.py`
+  - `wishlist/selenium_parser.py`
+  - `wishlist/tasks.py`
+  - `vybra/views.py`
+- Documentation:
+  - `AGENTS.md`
+  - `docs/DECISIONS.md`
+  - `docs/TASK_STATE.md`
+  - `docs/PROJECT_SUMMARY.md`
+  - `docs/KNOWN_ISSUES.md`
+  - `docs/RELEASE_NOTES.md`
+  - `CHANGELOG.md`
+
+### Validation
+- `docker compose --profile tools config` — passed
+- `docker compose down` — passed
+- `docker compose up -d --build` — passed
+- `docker compose logs web` — `wishlist.0007_rename_product_auto_indexes` applied; no pending migration warning
+- `docker compose run --rm web python manage.py check` — passed (0 issues)
+- `docker compose run --rm web python manage.py makemigrations --check --dry-run` — passed (`No changes detected`)
+- `docker compose --profile tools run --rm lint` — initially failed with 17 Ruff findings; all findings fixed
+- `docker compose --profile tools run --rm lint` — passed (`All checks passed!`)
+- `docker compose --profile tools run --rm e2e` — passed (`1 passed`)
+- HTTP checks:
+  - `curl -sI http://localhost:8000/` → 200
+  - `curl -sI http://localhost:8000/app/` → 200
+  - `curl -sI http://localhost:8000/api/docs` → 200
+- Playwright successful run artifacts are removed automatically by the `e2e` command; failure artifacts remain ignored by git for diagnostics.
+
+### Issues found and fixed during validation
+- Ruff found unused imports, late imports, one unused local variable, one unnecessary f-string, and three bare `except` blocks. Fixed in place without suppressing rules.
+- Production frontend build ignored the newly added lockfile because Dockerfile copied only `package.json`; changed to `package*.json` + `npm ci`.
+- `migrate` logged pending `wishlist` model changes for Product auto index names; added explicit `RenameIndex` migration.
+- A separate `seed-e2e` service left stale stopped containers after `docker compose down`; replaced seed dependency with unique UI registration inside the Playwright smoke test.
+
+### Risks
+- `npm ci` reports 2 frontend audit warnings (1 moderate, 1 high) in dev/build dependencies. They are not copied into the Python runtime image, but should be tracked separately.
+- Playwright currently covers one Chromium desktop smoke flow. Broader coverage for mobile viewport, PWA installability, compare flow with two valid items, and auth edge cases can be added incrementally.
+
+---
+
 ## 2026-06-21 (session 7)
 
 ### Task

@@ -4,9 +4,9 @@ FROM node:20-slim AS frontend
 
 WORKDIR /frontend
 
-# Зависимости отдельным слоем — кэшируются, пока не меняется package.json.
-COPY front_redesign/package.json ./
-RUN npm install
+# Зависимости отдельным слоем — кэшируются, пока не меняется package.json/package-lock.json.
+COPY front_redesign/package*.json ./
+RUN npm ci
 
 # Исходники и сборка: Vite пишет в /frontend/dist с base=/static/spa/.
 COPY front_redesign/ ./
